@@ -3,12 +3,12 @@
 #include <android/input.h>
 
 enum class InputEventType {
-  KEY,
-  MOTION,
-  SPECIAL,
-  SYSTEM,
-  VIRTUAL,
-  UNCLASSIFIED
+  KEY,         //!< Standard key press or release
+  MOTION,      //!< Touch screen or joystick motion
+  SPECIAL,     //!< Buttons like BACK, MENU or VOLUME
+  SYSTEM,      //!< System level actions such as HOME
+  VIRTUAL,     //!< On screen or emulated controls
+  UNCLASSIFIED //!< Anything that doesn't fit other groups
   };
 
 struct InputEventData {
