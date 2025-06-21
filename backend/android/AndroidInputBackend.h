@@ -12,7 +12,7 @@ class AndroidInputBackend : public IInputBackend {
     void pollEvents() override;
 
     /// Processes an Android input event. Called from native glue.
-    int32_t onInputEvent(AInputEvent* event);
+    int32_t onInputEvent(AInputEvent* event) override;
 
   private:
     KeyCallback    keyCb;
