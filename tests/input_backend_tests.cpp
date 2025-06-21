@@ -1,4 +1,7 @@
 #include "../backend/android/AndroidInputBackend.h"
+#ifdef ENABLE_GESTURE_TRACKING
+#include "../backend/android/GestureRecognizer.h"
+#endif
 #include <cassert>
 #include <cmath>
 int main(){
@@ -29,6 +32,21 @@ int main(){
   assert(isRepeatableEvent(a));
   a.keyCode = 0x1d00; // LCtrl
   assert(!isRepeatableEvent(a));
+#ifdef ENABLE_GESTURE_TRACKING
+  std::vector<std::pair<float,float>> s{{0.f,0.f},{100.f,0.f}};
+  std::vector<std::pair<float,float>> e{{60.f,0.f},{160.f,0.f}};
+  assert(classifyGesture(s,e)==GestureType::SWIPE);
+
+  e = {{-20.f,0.f},{120.f,0.f}};
+  assert(classifyGesture(s,e)==GestureType::PINCH_OUT);
+
+  e = {{20.f,0.f},{80.f,0.f}};
+  assert(classifyGesture(s,e)==GestureType::PINCH_IN);
+
+  s = {{0.f,0.f},{0.f,100.f}};
+  e = {{0.f,0.f},{100.f,0.f}};
+  assert(classifyGesture(s,e)==GestureType::ROTATE);
+#endif
 
 #ifdef ENABLE_SEQUENCE_TRACKING
   // test generateSequenceId increments

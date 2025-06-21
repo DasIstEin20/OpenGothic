@@ -1,11 +1,43 @@
 #include "AndroidInputBackend.h"
+#include "GestureRecognizer.h"
 #include <android/looper.h>
 #include <android/log.h>
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,"InputBackend",__VA_ARGS__)
 #include <cstring>
+#include <vector>
+#include <utility>
+#include <cmath>
 
 namespace {
   AndroidInputBackend* g_inst = nullptr;
+
+#ifdef ENABLE_GESTURE_TRACKING
+  struct GestureState {
+    bool                         active    = false;
+    uint64_t                     startTime = 0;
+    std::vector<std::pair<float,float>> startPos;
+    std::vector<std::pair<float,float>> lastPos;
+    uint32_t                     idCounter = 1;
+  } g_gesture;
+
+  const char* gestureToStr(GestureType g) {
+    switch(g) {
+      case GestureType::SWIPE:     return "SWIPE";
+      case GestureType::PINCH_IN:  return "PINCH_IN";
+      case GestureType::PINCH_OUT: return "PINCH_OUT";
+      case GestureType::ROTATE:    return "ROTATE";
+      default:                     return "NONE";
+      }
+    }
+
+  void logGesture(const InputEventData& d){
+    if(!AndroidInputBackend::verboseLogging)
+      return;
+    LOGI("{ \"gesture\": \"%s\", \"id\": %u, \"fingers\": %u, \"duration\": %llu }",
+         gestureToStr(d.gesture), d.gestureId, d.fingerCount,
+         static_cast<unsigned long long>(d.gestureDuration));
+    }
+#endif
 
   const char* typeToStr(InputEventType t) {
     switch(t) {
@@ -309,10 +341,58 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
         int32_t action = AMotionEvent_getAction(reinterpret_cast<AMotionEvent*>(event));
         int32_t baseAction = action & AMOTION_EVENT_ACTION_MASK;
         int32_t idx = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+#ifdef ENABLE_GESTURE_TRACKING
+        if(baseAction==AMOTION_EVENT_ACTION_DOWN){
+          g_gesture.active   = true;
+          g_gesture.startTime= d.eventTime;
+          g_gesture.startPos.clear();
+          g_gesture.lastPos.clear();
+          for(size_t i=0;i<cnt;++i){
+            float px = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
+            float py = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+            g_gesture.startPos.push_back({px,py});
+            g_gesture.lastPos.push_back({px,py});
+          }
+        } else if(baseAction==AMOTION_EVENT_ACTION_POINTER_DOWN && g_gesture.active){
+          if(g_gesture.startPos.size()<cnt){
+            float px = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), idx);
+            float py = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), idx);
+            g_gesture.startPos.push_back({px,py});
+            g_gesture.lastPos.push_back({px,py});
+          }
+        } else if(baseAction==AMOTION_EVENT_ACTION_MOVE && g_gesture.active){
+          for(size_t i=0;i<cnt && i<g_gesture.lastPos.size(); ++i){
+            float px = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
+            float py = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+            g_gesture.lastPos[i]={px,py};
+          }
+        } else if(baseAction==AMOTION_EVENT_ACTION_UP && g_gesture.active){
+          for(size_t i=0;i<g_gesture.lastPos.size() && i<cnt; ++i){
+            float px = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
+            float py = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+            g_gesture.lastPos[i]={px,py};
+          }
+          InputEventData gd{};
+          gd.type      = InputEventType::MOTION;
+          gd.source    = InputEventSource::TOUCHSCREEN;
+          gd.deviceId  = d.deviceId;
+          gd.eventTime = d.eventTime;
+          gd.gestureId = g_gesture.idCounter++;
+          gd.fingerCount = static_cast<uint32_t>(g_gesture.startPos.size());
+          gd.gestureDuration = d.eventTime - g_gesture.startTime;
+          gd.touchClass = InputTouchClass::GESTURE;
+          gd.gesture = classifyGesture(g_gesture.startPos,g_gesture.lastPos);
+          logGesture(gd);
+          g_gesture.active = false;
+        }
+#endif
         for(size_t i=0;i<cnt;++i) {
           d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
           d.y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
           d.pressed = !(baseAction==AMOTION_EVENT_ACTION_UP || (baseAction==AMOTION_EVENT_ACTION_POINTER_UP && idx==(int)i));
+#ifdef ENABLE_GESTURE_TRACKING
+          d.touchClass = (cnt>1) ? InputTouchClass::MULTI : InputTouchClass::SINGLE;
+#endif
 #ifdef ENABLE_SEQUENCE_TRACKING
           if(d.pressed && (!seqActive || d.eventTime-lastSeqTime>seqTimeoutMs)) {
             currentSeqId = generateSequenceId();
