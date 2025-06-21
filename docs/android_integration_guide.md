@@ -24,8 +24,11 @@ interfaces implemented in `backend/`.
    - Game code should call `GameMain` instead of `main` when built for Android
      so that platform backends can be injected. Touch handling and asset loading
      can then be implemented on top of the provided interfaces.
-   - Version 2 introduced basic key and motion callbacks. Input events are now
-     classified via `InputEventType` into `KEY`, `MOTION`, `SPECIAL` or
-     `UNCLASSIFIED`. `AndroidInputBackend` normalizes data into a small
-     `InputEventData` structure for logging and internal processing.
+  - Version 2 introduced basic key and motion callbacks. Input events are now
+    classified via `InputEventType` into `KEY`, `MOTION`, `SPECIAL`, `SYSTEM`,
+    `VIRTUAL` or `UNCLASSIFIED`. `AndroidInputBackend` normalizes data into a
+    small `InputEventData` structure for logging and internal processing.
+  - Version 4 adds duplicate filtering and a concise `type=value` logging
+    format for easier debugging. Verbose output can be toggled in development
+    builds via `AndroidInputBackend::setVerboseLogging`.
 
