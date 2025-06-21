@@ -43,26 +43,62 @@ namespace {
       return;
     if(d.type==InputEventType::KEY) {
       if(msg)
-        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
+        LOGI(
+             "{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu"
+#ifdef ENABLE_SEQUENCE_TRACKING
+             ", \"seq\": %llu, \"longPress\": %s"
+#endif
+             ", \"msg\": \"%s\" }",
              typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
              d.pressed?"true":"false", d.repeatable?"true":"false", d.x, d.y,
-             static_cast<unsigned long long>(d.eventTime), msg);
+             static_cast<unsigned long long>(d.eventTime)
+#ifdef ENABLE_SEQUENCE_TRACKING
+             , static_cast<unsigned long long>(d.sequenceId), d.longPress?"true":"false"
+#endif
+             , msg);
       else
-        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
+        LOGI(
+             "{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu"
+#ifdef ENABLE_SEQUENCE_TRACKING
+             ", \"seq\": %llu, \"longPress\": %s"
+#endif
+             " }",
              typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
              d.pressed?"true":"false", d.repeatable?"true":"false", d.x, d.y,
-             static_cast<unsigned long long>(d.eventTime));
+             static_cast<unsigned long long>(d.eventTime)
+#ifdef ENABLE_SEQUENCE_TRACKING
+             , static_cast<unsigned long long>(d.sequenceId), d.longPress?"true":"false"
+#endif
+             );
     } else {
       if(msg)
-        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
+        LOGI(
+             "{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu"
+#ifdef ENABLE_SEQUENCE_TRACKING
+             ", \"seq\": %llu"
+#endif
+             ", \"msg\": \"%s\" }",
              typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
              d.pressed?"true":"false", d.x, d.y,
-             static_cast<unsigned long long>(d.eventTime), msg);
+             static_cast<unsigned long long>(d.eventTime)
+#ifdef ENABLE_SEQUENCE_TRACKING
+             , static_cast<unsigned long long>(d.sequenceId)
+#endif
+             , msg);
       else
-        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
+        LOGI(
+             "{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu"
+#ifdef ENABLE_SEQUENCE_TRACKING
+             ", \"seq\": %llu"
+#endif
+             " }",
              typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
              d.pressed?"true":"false", d.x, d.y,
-             static_cast<unsigned long long>(d.eventTime));
+             static_cast<unsigned long long>(d.eventTime)
+#ifdef ENABLE_SEQUENCE_TRACKING
+             , static_cast<unsigned long long>(d.sequenceId)
+#endif
+             );
     }
     }
 
@@ -179,6 +215,9 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
   int32_t rawSrc = AInputEvent_getSource(event);
   d.source   = mapSource(rawSrc);
   d.deviceId = AInputEvent_getDeviceId(event);
+#ifdef ENABLE_SEQUENCE_TRACKING
+  const uint64_t seqTimeoutMs = 200;
+#endif
 
   switch(AInputEvent_getType(event)) {
     case AINPUT_EVENT_TYPE_KEY: {
@@ -190,6 +229,21 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       d.type       = special ? InputEventType::SPECIAL : InputEventType::KEY;
       d.eventTime  = static_cast<uint64_t>(AKeyEvent_getEventTime(event));
       d.repeatable = isRepeatableEvent(d);
+#ifdef ENABLE_SEQUENCE_TRACKING
+      if(d.pressed && (!seqActive || d.keyCode!=seqKey || d.eventTime-lastSeqTime>seqTimeoutMs)) {
+        currentSeqId = generateSequenceId();
+        seqStartTime = d.eventTime;
+        seqActive    = true;
+        seqKey       = d.keyCode;
+      }
+      if(!d.pressed && seqActive)
+        d.longPress = isLongPress(seqStartTime,d.eventTime);
+      if(seqActive)
+        d.sequenceId = currentSeqId;
+      if(!d.pressed)
+        seqActive=false;
+      lastSeqTime = d.eventTime;
+#endif
       if(d.deviceId<0 || rawSrc==0)
         return 0;
 
@@ -214,6 +268,16 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       d.type      = InputEventType::MOTION;
       d.eventTime = static_cast<uint64_t>(AMotionEvent_getEventTime(reinterpret_cast<AMotionEvent*>(event)));
       if(rawSrc & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
+#ifdef ENABLE_SEQUENCE_TRACKING
+        if(!seqActive || d.eventTime-lastSeqTime>seqTimeoutMs) {
+          currentSeqId = generateSequenceId();
+          seqStartTime = d.eventTime;
+          seqActive    = true;
+          seqKey       = 0;
+        }
+        d.sequenceId = currentSeqId;
+        lastSeqTime  = d.eventTime;
+#endif
         d.x = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
         d.y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
         float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
@@ -233,7 +297,8 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
             motionCb(rx, ry);
           } else {
             logEvent("joyL", d);
-            InputEventData r = d; r.x = rx; r.y = ry; logEvent("joyR", r);
+            InputEventData r = d; r.x = rx; r.y = ry;
+            logEvent("joyR", r);
           }
         } else if(d.deviceId>=0) {
           LOGI("Duplicate event skipped: { \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d }",
@@ -241,9 +306,25 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
         }
       } else if(rawSrc & AINPUT_SOURCE_TOUCHSCREEN) {
         size_t cnt = AMotionEvent_getPointerCount(reinterpret_cast<AMotionEvent*>(event));
+        int32_t action = AMotionEvent_getAction(reinterpret_cast<AMotionEvent*>(event));
+        int32_t baseAction = action & AMOTION_EVENT_ACTION_MASK;
+        int32_t idx = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
         for(size_t i=0;i<cnt;++i) {
           d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
           d.y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+          d.pressed = !(baseAction==AMOTION_EVENT_ACTION_UP || (baseAction==AMOTION_EVENT_ACTION_POINTER_UP && idx==(int)i));
+#ifdef ENABLE_SEQUENCE_TRACKING
+          if(d.pressed && (!seqActive || d.eventTime-lastSeqTime>seqTimeoutMs)) {
+            currentSeqId = generateSequenceId();
+            seqStartTime = d.eventTime;
+            seqActive    = true;
+            seqKey       = 0;
+          }
+          d.sequenceId = currentSeqId;
+          if(!d.pressed)
+            seqActive = false;
+          lastSeqTime = d.eventTime;
+#endif
           if(!validCoords(d.x,d.y))
             continue;
           if(d.deviceId>=0 && !sameEvent(d,lastEvent)) {
