@@ -1,0 +1,33 @@
+[submodule "lib/bgfx-cmake"]
+	path = lib/bgfx-cmake
+	url = https://github.com/degenerated1123/bgfx-cmake.git
+[submodule "lib/ZenLib"]
+	path = lib/ZenLib
+	url = https://github.com/degenerated1123/ZenLib.git
+[submodule "lib/glm"]
+	path = lib/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "lib/tinydir"]
+	path = lib/tinydir
+	url = https://github.com/cxong/tinydir.git
+[submodule "lib/bullet3"]
+	path = lib/bullet3
+	url = https://github.com/bulletphysics/bullet3.git
+[submodule "lib/glfw"]
+	path = lib/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "lib/adpcm-xq"]
+	path = lib/adpcm-xq
+	url = https://github.com/dbry/adpcm-xq.git
+[submodule "lib/openal-soft"]
+	path = lib/openal-soft
+	url = https://github.com/kcat/openal-soft.git
+[submodule "lib/CAB-Installer-Extractor"]
+	path = lib/CAB-Installer-Extractor
+	url = https://github.com/REGoth-project/CAB-Installer-Extractor.git
+[submodule "lib/libdmusic"]
+	path = lib/libdmusic
+	url = https://github.com/frabert/libdmusic.git
+[submodule "lib/optional"]
+	path = lib/optional
+	url = https://github.com/TartanLlama/optional.git
