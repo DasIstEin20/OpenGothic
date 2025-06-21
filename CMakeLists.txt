@@ -12,6 +12,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_SKIP_RPATH ON)
 
 add_executable(${PROJECT_NAME})
+if(ANDROID)
+  add_subdirectory(android)
+endif()
 
 if(MSVC)
   add_definitions(-D_USE_MATH_DEFINES)

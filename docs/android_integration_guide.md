@@ -1,0 +1,26 @@
+# Android Integration Guide
+
+This guide describes how to embed the OpenGothic engine into a minimal
+`NativeActivity` based launcher. The approach follows the backend design with
+interfaces implemented in `backend/`.
+
+1. **Build system**
+   - The root `CMakeLists.txt` checks for `ANDROID` and includes the `android`
+     directory. The `android/CMakeLists.txt` builds `libOpenGothic.so` from the
+     backend sources and links against the NDK libraries.
+
+2. **Native entry point**
+   - `backend/android/android_main.cpp` exposes `ANativeActivity_onCreate` which
+     creates backend objects (`AndroidInputBackend`, `AndroidAudioBackend`,
+     `AndroidFileSystemBackend`, `AndroidNativeGlue`) and passes them to
+     `GameMain` – an exported function expected to start the engine.
+
+3. **Manifest**
+   - `android/AndroidManifest.xml` configures a landscape `NativeActivity` and
+     requests external storage permissions.
+
+4. **Extending the engine**
+   - Game code should call `GameMain` instead of `main` when built for Android
+     so that platform backends can be injected. Touch handling and asset loading
+     can then be implemented on top of the provided interfaces.
+
