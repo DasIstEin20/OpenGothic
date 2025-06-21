@@ -22,10 +22,24 @@ namespace {
   void logEvent(const char* msg, const InputEventData& d) {
     if(!AndroidInputBackend::verboseLogging)
       return;
-    LOGI("type=%s src=%d dev=%d key=%d pressed=%s x=%.2f y=%.2f%s%s",
-         typeToStr(d.type), d.source, d.deviceId, d.keyCode,
-         d.pressed?"true":"false", d.x, d.y,
-         msg?" msg=":"", msg?msg:"");
+    if(msg)
+      LOGI("{ \"type\": \"%s\", \"src\": %d, \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"msg\": \"%s\" }",
+           typeToStr(d.type), d.source, d.deviceId, d.keyCode,
+           d.pressed?"true":"false", d.x, d.y, msg);
+    else
+      LOGI("{ \"type\": \"%s\", \"src\": %d, \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f }",
+           typeToStr(d.type), d.source, d.deviceId, d.keyCode,
+           d.pressed?"true":"false", d.x, d.y);
+    }
+
+  bool sameEvent(const InputEventData& a, const InputEventData& b){
+    return a.type==b.type && a.source==b.source && a.deviceId==b.deviceId &&
+           a.keyCode==b.keyCode && a.pressed==b.pressed &&
+           std::fabs(a.x-b.x)<0.0001f && std::fabs(a.y-b.y)<0.0001f;
+    }
+
+  bool validCoords(float x,float y){
+    return std::isfinite(x) && std::isfinite(y);
     }
 
   int32_t mapKey(int32_t k){
@@ -152,14 +166,8 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       if(d.deviceId<0 || d.source==0)
         return 0;
 
-      auto equalEvent = [](const InputEventData& a, const InputEventData& b){
-        return a.type==b.type && a.source==b.source && a.deviceId==b.deviceId &&
-               a.keyCode==b.keyCode && a.pressed==b.pressed &&
-               std::fabs(a.x-b.x)<0.0001f && std::fabs(a.y-b.y)<0.0001f;
-        };
-
       if(d.keyCode!=0) {
-        if(equalEvent(d,lastEvent))
+        if(sameEvent(d,lastEvent))
           return 0;
         lastEvent = d;
         if(keyCb)
@@ -179,7 +187,15 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
         d.y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
         float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
         float ry = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_RZ, 0);
-        if(d.deviceId>=0 && !(equalEvent(d,lastEvent))) {
+        if(!validCoords(d.x,d.y)) {
+          d.x = 0.f;
+          d.y = 0.f;
+        }
+        if(!validCoords(rx,ry)) {
+          rx = 0.f;
+          ry = 0.f;
+        }
+        if(d.deviceId>=0 && !sameEvent(d,lastEvent)) {
           lastEvent = d;
           if(motionCb) {
             motionCb(d.x, d.y);
@@ -194,7 +210,9 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
         for(size_t i=0;i<cnt;++i) {
           d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
           d.y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
-          if(d.deviceId>=0 && !(equalEvent(d,lastEvent))) {
+          if(!validCoords(d.x,d.y))
+            continue;
+          if(d.deviceId>=0 && !sameEvent(d,lastEvent)) {
             lastEvent = d;
             if(motionCb)
               motionCb(d.x, d.y);
