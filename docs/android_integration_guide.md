@@ -45,3 +45,7 @@ interfaces implemented in `backend/`.
 flags. These fields help correlate events with engine behavior and diagnose
 suppression of duplicates.
 
+  - Version 6 introduces `isRepeatableEvent()` to detect keys that will
+    auto-repeat when held down. Logged key events now include a
+    `repeatable` field indicating this classification.
+

@@ -24,5 +24,10 @@ int main(){
   assert(validCoords(0.f,0.f));
   assert(!validCoords(NAN,0.f));
   assert(!validCoords(0.f,INFINITY));
+
+  a.keyCode = 0x1e00; // 'A'
+  assert(isRepeatableEvent(a));
+  a.keyCode = 0x1d00; // LCtrl
+  assert(!isRepeatableEvent(a));
   return 0;
 }
