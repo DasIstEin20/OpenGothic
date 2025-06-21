@@ -19,6 +19,7 @@ namespace {
       }
     }
 
+  // Log an input event using a compact JSON style string
   void logEvent(const char* msg, const InputEventData& d) {
     if(!AndroidInputBackend::verboseLogging)
       return;
@@ -32,12 +33,14 @@ namespace {
            d.pressed?"true":"false", d.x, d.y);
     }
 
+  // Returns true if two events carry identical data
   bool sameEvent(const InputEventData& a, const InputEventData& b){
     return a.type==b.type && a.source==b.source && a.deviceId==b.deviceId &&
            a.keyCode==b.keyCode && a.pressed==b.pressed &&
            std::fabs(a.x-b.x)<0.0001f && std::fabs(a.y-b.y)<0.0001f;
     }
 
+  // Validates that coordinates are finite values
   bool validCoords(float x,float y){
     return std::isfinite(x) && std::isfinite(y);
     }
