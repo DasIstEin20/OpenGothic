@@ -10,10 +10,11 @@ interfaces implemented in `backend/`.
      backend sources and links against the NDK libraries.
 
 2. **Native entry point**
-   - `backend/android/android_main.cpp` exposes `ANativeActivity_onCreate` which
-     creates backend objects (`AndroidInputBackend`, `AndroidAudioBackend`,
+   - `backend/android/android_main.cpp` defines `android_main` using the NDK
+     glue. It creates backend objects (`AndroidInputBackend`, `AndroidAudioBackend`,
      `AndroidFileSystemBackend`, `AndroidNativeGlue`) and passes them to
-     `GameMain` – an exported function expected to start the engine.
+     `GameMain` – an exported function expected to start the engine. Input events
+     from the looper are forwarded via `onInputEvent` to the input backend.
 
 3. **Manifest**
    - `android/AndroidManifest.xml` configures a landscape `NativeActivity` and

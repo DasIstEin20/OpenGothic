@@ -55,12 +55,23 @@ namespace {
       case AKEYCODE_SPACE:      return 0x3900; // Space
       case AKEYCODE_ENTER:      return 0x1c00; // Enter
       case AKEYCODE_DEL:        return 0x0e00; // Backspace
+      case AKEYCODE_FORWARD_DEL:return 0xd300; // Delete
+      case AKEYCODE_TAB:        return 0x0f00; // Tab
+      case AKEYCODE_CAPS_LOCK:  return 0x3a00; // Caps Lock
+      case AKEYCODE_CTRL_LEFT:  return 0x1d00; // LCtrl
+      case AKEYCODE_CTRL_RIGHT: return 0x9d00; // RCtrl
+      case AKEYCODE_SHIFT_LEFT: return 0x2a00; // LShift
+      case AKEYCODE_SHIFT_RIGHT:return 0x3600; // RShift
+      case AKEYCODE_ALT_LEFT:   return 0x3800; // LAlt
+      case AKEYCODE_ALT_RIGHT:  return 0xb800; // RAlt
+
       case AKEYCODE_BUTTON_A:   return 0x3800; // Jump - Alt
       case AKEYCODE_BUTTON_B:   return 0x1d00; // Action - Ctrl
       case AKEYCODE_BUTTON_X:   return 0x3900; // Weapon/Action
-      case AKEYCODE_BUTTON_Y:   return 0x1e00; // Left? placeholder
+      case AKEYCODE_BUTTON_Y:   return 0x1e00; // Additional action
 
-      case AKEYCODE_BACK:       return 0x0100; // Escape
+      case AKEYCODE_BACK:
+      case AKEYCODE_ESCAPE:     return 0x0100; // Escape
       case AKEYCODE_BUTTON_START:
       case AKEYCODE_MENU:       return 0x0100; // Menu / Escape
       default:
@@ -97,7 +108,8 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
 
   switch(AInputEvent_getType(event)) {
     case AINPUT_EVENT_TYPE_KEY: {
-      int32_t code = mapKey(AKeyEvent_getKeyCode(event));
+      int32_t raw = AKeyEvent_getKeyCode(event);
+      int32_t code = mapKey(raw);
       if(code!=0) {
         bool pressed = (AKeyEvent_getAction(event)==AKEY_EVENT_ACTION_DOWN);
         if(keyCb)
@@ -106,28 +118,34 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
           LOGI("key %d %s", code, pressed?"down":"up");
         return 1;
         }
+      LOGI("unmapped key %d", raw);
       break;
       }
     case AINPUT_EVENT_TYPE_MOTION: {
       const int32_t src = AInputEvent_getSource(event);
-      float x=0.f, y=0.f;
       if(src & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
-        x = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
-        y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
-        if(motionCb)
-          motionCb(x,y);
-        else
-          LOGI("joy %.2f %.2f", x, y);
-        x = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
-        y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_RZ, 0);
+        float lx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
+        float ly = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
+        float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
+        float ry = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_RZ, 0);
+        if(motionCb) {
+          motionCb(lx, ly);
+          motionCb(rx, ry);
+        } else {
+          LOGI("joyL %.2f %.2f", lx, ly);
+          LOGI("joyR %.2f %.2f", rx, ry);
+        }
       } else if(src & AINPUT_SOURCE_TOUCHSCREEN) {
-        x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event),0);
-        y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event),0);
+        size_t cnt = AMotionEvent_getPointerCount(reinterpret_cast<AMotionEvent*>(event));
+        for(size_t i=0;i<cnt;++i) {
+          float x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
+          float y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+          if(motionCb)
+            motionCb(x, y);
+          else
+            LOGI("touch %zu %.2f %.2f", i, x, y);
+        }
       }
-      if(motionCb)
-        motionCb(x,y);
-      else
-        LOGI("motion %.2f %.2f", x, y);
       return 1;
       }
     }
