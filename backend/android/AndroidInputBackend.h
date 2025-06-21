@@ -6,6 +6,8 @@ enum class InputEventType {
   KEY,
   MOTION,
   SPECIAL,
+  SYSTEM,
+  VIRTUAL,
   UNCLASSIFIED
   };
 
@@ -24,6 +26,10 @@ class AndroidInputBackend : public IInputBackend {
     AndroidInputBackend();
     ~AndroidInputBackend() override;
 
+    /// Enables or disables verbose input logging. Defaults to true in debug
+    /// builds and false otherwise.
+    static void setVerboseLogging(bool v);
+
     void setKeyCallback(KeyCallback cb) override;
     void setMotionCallback(MotionCallback cb) override;
     void pollEvents() override;
@@ -34,5 +40,7 @@ class AndroidInputBackend : public IInputBackend {
   private:
     KeyCallback    keyCb;
     MotionCallback motionCb;
+    InputEventData lastEvent{};
+    static bool    verboseLogging;
   };
 

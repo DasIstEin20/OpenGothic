@@ -3,6 +3,7 @@
 #include <android/log.h>
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,"InputBackend",__VA_ARGS__)
 #include <cstring>
+#include <cmath>
 
 namespace {
   AndroidInputBackend* g_inst = nullptr;
@@ -12,8 +13,19 @@ namespace {
       case InputEventType::KEY:        return "KEY";
       case InputEventType::MOTION:     return "MOTION";
       case InputEventType::SPECIAL:    return "SPECIAL";
+      case InputEventType::SYSTEM:     return "SYSTEM";
+      case InputEventType::VIRTUAL:    return "VIRTUAL";
       default:                         return "UNCLASSIFIED";
       }
+    }
+
+  void logEvent(const char* msg, const InputEventData& d) {
+    if(!AndroidInputBackend::verboseLogging)
+      return;
+    LOGI("type=%s src=%d dev=%d key=%d pressed=%s x=%.2f y=%.2f%s%s",
+         typeToStr(d.type), d.source, d.deviceId, d.keyCode,
+         d.pressed?"true":"false", d.x, d.y,
+         msg?" msg=":"", msg?msg:"");
     }
 
   int32_t mapKey(int32_t k){
@@ -89,6 +101,12 @@ namespace {
     }
 }
 
+#ifndef NDEBUG
+bool AndroidInputBackend::verboseLogging = true;
+#else
+bool AndroidInputBackend::verboseLogging = false;
+#endif
+
 AndroidInputBackend::AndroidInputBackend() {
   g_inst = this;
   }
@@ -96,6 +114,10 @@ AndroidInputBackend::AndroidInputBackend() {
 AndroidInputBackend::~AndroidInputBackend() {
   if(g_inst==this)
     g_inst=nullptr;
+  }
+
+void AndroidInputBackend::setVerboseLogging(bool v) {
+  verboseLogging = v;
   }
 
 void AndroidInputBackend::setKeyCallback(KeyCallback cb) {
@@ -127,16 +149,27 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       bool special = (raw==AKEYCODE_BACK || raw==AKEYCODE_MENU ||
                       raw==AKEYCODE_VOLUME_UP || raw==AKEYCODE_VOLUME_DOWN);
       d.type       = special ? InputEventType::SPECIAL : InputEventType::KEY;
+      if(d.deviceId<0 || d.source==0)
+        return 0;
+
+      auto equalEvent = [](const InputEventData& a, const InputEventData& b){
+        return a.type==b.type && a.source==b.source && a.deviceId==b.deviceId &&
+               a.keyCode==b.keyCode && a.pressed==b.pressed &&
+               std::fabs(a.x-b.x)<0.0001f && std::fabs(a.y-b.y)<0.0001f;
+        };
 
       if(d.keyCode!=0) {
+        if(equalEvent(d,lastEvent))
+          return 0;
+        lastEvent = d;
         if(keyCb)
           keyCb(d.keyCode, d.pressed);
         else
-          LOGI("[%s src=%d] key %d %s", typeToStr(d.type), d.deviceId,
-               d.keyCode, d.pressed?"down":"up");
+          logEvent(nullptr, d);
         return 1;
       }
-      LOGI("[%s src=%d] unmapped key %d", typeToStr(d.type), d.deviceId, raw);
+
+      logEvent("unmapped", d);
       break;
       }
     case AINPUT_EVENT_TYPE_MOTION: {
@@ -146,31 +179,40 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
         d.y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
         float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
         float ry = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_RZ, 0);
-        if(motionCb) {
-          motionCb(d.x, d.y);
-          motionCb(rx, ry);
-        } else {
-          LOGI("[%s src=%d] joyL %.2f %.2f", typeToStr(d.type), d.deviceId, d.x, d.y);
-          LOGI("[%s src=%d] joyR %.2f %.2f", typeToStr(d.type), d.deviceId, rx, ry);
+        if(d.deviceId>=0 && !(equalEvent(d,lastEvent))) {
+          lastEvent = d;
+          if(motionCb) {
+            motionCb(d.x, d.y);
+            motionCb(rx, ry);
+          } else {
+            logEvent("joyL", d);
+            InputEventData r = d; r.x = rx; r.y = ry; logEvent("joyR", r);
+          }
         }
       } else if(d.source & AINPUT_SOURCE_TOUCHSCREEN) {
         size_t cnt = AMotionEvent_getPointerCount(reinterpret_cast<AMotionEvent*>(event));
         for(size_t i=0;i<cnt;++i) {
           d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
           d.y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
-          if(motionCb)
-            motionCb(d.x, d.y);
-          else
-            LOGI("[%s src=%d] touch %zu %.2f %.2f", typeToStr(d.type), d.deviceId, i, d.x, d.y);
+          if(d.deviceId>=0 && !(equalEvent(d,lastEvent))) {
+            lastEvent = d;
+            if(motionCb)
+              motionCb(d.x, d.y);
+            else {
+              char buf[32];
+              std::snprintf(buf,sizeof(buf),"touch%zu",i);
+              logEvent(buf, d);
+            }
+          }
         }
       } else {
-        LOGI("[MOTION src=%d] unhandled motion event", d.deviceId);
+        logEvent("unhandled-motion", d);
       }
       return 1;
       }
     default:
       d.type = InputEventType::UNCLASSIFIED;
-      LOGI("[UNCLASSIFIED src=%d] type %d", d.deviceId, AInputEvent_getType(event));
+      logEvent("unclassified", d);
       break;
     }
   return 0;
