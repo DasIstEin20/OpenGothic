@@ -24,6 +24,22 @@ enum class InputEventSource {
   JOYSTICK
   };
 
+#ifdef ENABLE_GESTURE_TRACKING
+enum class InputTouchClass {
+  SINGLE,
+  MULTI,
+  GESTURE
+  };
+
+enum class GestureType {
+  NONE,
+  SWIPE,
+  PINCH_IN,
+  PINCH_OUT,
+  ROTATE
+  };
+#endif
+
 struct InputEventData {
   InputEventType   type = InputEventType::UNCLASSIFIED;
   InputEventSource source = InputEventSource::UNKNOWN;
@@ -34,6 +50,13 @@ struct InputEventData {
   float            x = 0.f;
   float            y = 0.f;
   uint64_t         eventTime = 0;
+#ifdef ENABLE_GESTURE_TRACKING
+  uint32_t         gestureId      = 0;
+  uint32_t         fingerCount    = 0;
+  uint64_t         gestureDuration= 0;
+  InputTouchClass  touchClass     = InputTouchClass::SINGLE;
+  GestureType      gesture        = GestureType::NONE;
+#endif
 #ifdef ENABLE_SEQUENCE_TRACKING
   uint64_t         sequenceId = 0;
   bool             longPress  = false;

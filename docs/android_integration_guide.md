@@ -54,4 +54,21 @@ suppression of duplicates.
     that links related actions (e.g., tap or swipe gestures) and a
     `longPress` flag when the press duration exceeds 500ms. Sequences are
     grouped when consecutive inputs occur within 200ms of each other.
+  - Version 8 introduces optional gesture tracking when
+    `ENABLE_GESTURE_TRACKING` is defined. Multi-touch motion events are
+    analyzed and classified as `SWIPE`, `PINCH_IN`, `PINCH_OUT` or `ROTATE`.
+    Logged records include `gesture`, `fingers` and `duration` fields such as
+    `{ "gesture": "SWIPE", "id": 1, "fingers": 2, "duration": 150 }`.
+    Define the macro during compilation to enable this feature:
+
+    ```bash
+    g++ -DENABLE_GESTURE_TRACKING ...
+    ```
+    
+    With gesture tracking enabled, a pinch-out motion would emit a log entry
+    similar to:
+
+    ```
+    { "gesture": "PINCH_OUT", "id": 3, "fingers": 2, "duration": 120 }
+    ```
 
