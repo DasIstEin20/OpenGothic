@@ -29,6 +29,8 @@ interfaces implemented in `backend/`.
     `VIRTUAL` or `UNCLASSIFIED`. `AndroidInputBackend` normalizes data into a
     small `InputEventData` structure for logging and internal processing.
   - Version 4 adds duplicate filtering and switches logging to a JSON style
-    record such as `{ "type": "MOTION", "x": 100, "y": 200 }`. Verbose output
-    can be toggled with `AndroidInputBackend::setVerboseLogging`.
+    record such as `{ "type": "MOTION", "x": 100, "y": 200 }`. Events are
+    validated with `validCoords` and filtered with `sameEvent` before
+    dispatch. Verbose output can be toggled with
+    `AndroidInputBackend::setVerboseLogging`.
 
