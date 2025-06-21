@@ -7,6 +7,15 @@
 namespace {
   AndroidInputBackend* g_inst = nullptr;
 
+  const char* typeToStr(InputEventType t) {
+    switch(t) {
+      case InputEventType::KEY:        return "KEY";
+      case InputEventType::MOTION:     return "MOTION";
+      case InputEventType::SPECIAL:    return "SPECIAL";
+      default:                         return "UNCLASSIFIED";
+      }
+    }
+
   int32_t mapKey(int32_t k){
     switch(k){
       case AKEYCODE_A: return 0x1e00;
@@ -106,48 +115,63 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
   if(event==nullptr)
     return 0;
 
+  InputEventData d;
+  d.source   = AInputEvent_getSource(event);
+  d.deviceId = AInputEvent_getDeviceId(event);
+
   switch(AInputEvent_getType(event)) {
     case AINPUT_EVENT_TYPE_KEY: {
-      int32_t raw = AKeyEvent_getKeyCode(event);
-      int32_t code = mapKey(raw);
-      if(code!=0) {
-        bool pressed = (AKeyEvent_getAction(event)==AKEY_EVENT_ACTION_DOWN);
+      int32_t raw  = AKeyEvent_getKeyCode(event);
+      d.keyCode    = mapKey(raw);
+      d.pressed    = (AKeyEvent_getAction(event)==AKEY_EVENT_ACTION_DOWN);
+      bool special = (raw==AKEYCODE_BACK || raw==AKEYCODE_MENU ||
+                      raw==AKEYCODE_VOLUME_UP || raw==AKEYCODE_VOLUME_DOWN);
+      d.type       = special ? InputEventType::SPECIAL : InputEventType::KEY;
+
+      if(d.keyCode!=0) {
         if(keyCb)
-          keyCb(code, pressed);
+          keyCb(d.keyCode, d.pressed);
         else
-          LOGI("key %d %s", code, pressed?"down":"up");
+          LOGI("[%s src=%d] key %d %s", typeToStr(d.type), d.deviceId,
+               d.keyCode, d.pressed?"down":"up");
         return 1;
-        }
-      LOGI("unmapped key %d", raw);
+      }
+      LOGI("[%s src=%d] unmapped key %d", typeToStr(d.type), d.deviceId, raw);
       break;
       }
     case AINPUT_EVENT_TYPE_MOTION: {
-      const int32_t src = AInputEvent_getSource(event);
-      if(src & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
-        float lx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
-        float ly = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
+      d.type = InputEventType::MOTION;
+      if(d.source & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
+        d.x = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
+        d.y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
         float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
         float ry = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_RZ, 0);
         if(motionCb) {
-          motionCb(lx, ly);
+          motionCb(d.x, d.y);
           motionCb(rx, ry);
         } else {
-          LOGI("joyL %.2f %.2f", lx, ly);
-          LOGI("joyR %.2f %.2f", rx, ry);
+          LOGI("[%s src=%d] joyL %.2f %.2f", typeToStr(d.type), d.deviceId, d.x, d.y);
+          LOGI("[%s src=%d] joyR %.2f %.2f", typeToStr(d.type), d.deviceId, rx, ry);
         }
-      } else if(src & AINPUT_SOURCE_TOUCHSCREEN) {
+      } else if(d.source & AINPUT_SOURCE_TOUCHSCREEN) {
         size_t cnt = AMotionEvent_getPointerCount(reinterpret_cast<AMotionEvent*>(event));
         for(size_t i=0;i<cnt;++i) {
-          float x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
-          float y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
+          d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
+          d.y = AMotionEvent_getY(reinterpret_cast<AMotionEvent*>(event), i);
           if(motionCb)
-            motionCb(x, y);
+            motionCb(d.x, d.y);
           else
-            LOGI("touch %zu %.2f %.2f", i, x, y);
+            LOGI("[%s src=%d] touch %zu %.2f %.2f", typeToStr(d.type), d.deviceId, i, d.x, d.y);
         }
+      } else {
+        LOGI("[MOTION src=%d] unhandled motion event", d.deviceId);
       }
       return 1;
       }
+    default:
+      d.type = InputEventType::UNCLASSIFIED;
+      LOGI("[UNCLASSIFIED src=%d] type %d", d.deviceId, AInputEvent_getType(event));
+      break;
     }
   return 0;
   }

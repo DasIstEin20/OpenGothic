@@ -2,6 +2,23 @@
 #include "../IInputBackend.h"
 #include <android/input.h>
 
+enum class InputEventType {
+  KEY,
+  MOTION,
+  SPECIAL,
+  UNCLASSIFIED
+  };
+
+struct InputEventData {
+  InputEventType type = InputEventType::UNCLASSIFIED;
+  int32_t        source = 0;
+  int32_t        deviceId = 0;
+  int32_t        keyCode = 0;
+  bool           pressed = false;
+  float          x = 0.f;
+  float          y = 0.f;
+  };
+
 class AndroidInputBackend : public IInputBackend {
   public:
     AndroidInputBackend();
