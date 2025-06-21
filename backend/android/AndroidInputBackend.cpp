@@ -3,7 +3,6 @@
 #include <android/log.h>
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,"InputBackend",__VA_ARGS__)
 #include <cstring>
-#include <cmath>
 
 namespace {
   AndroidInputBackend* g_inst = nullptr;
@@ -19,30 +18,39 @@ namespace {
       }
     }
 
+  const char* sourceToStr(InputEventSource s) {
+    switch(s) {
+      case InputEventSource::TOUCHSCREEN: return "TOUCHSCREEN";
+      case InputEventSource::KEYBOARD:    return "KEYBOARD";
+      case InputEventSource::JOYSTICK:    return "JOYSTICK";
+      default:                            return "UNKNOWN";
+      }
+    }
+
+  InputEventSource mapSource(int32_t s){
+    if(s & AINPUT_SOURCE_TOUCHSCREEN)
+      return InputEventSource::TOUCHSCREEN;
+    if(s & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD))
+      return InputEventSource::JOYSTICK;
+    if(s & AINPUT_SOURCE_KEYBOARD)
+      return InputEventSource::KEYBOARD;
+    return InputEventSource::UNKNOWN;
+    }
+
   // Log an input event using a compact JSON style string
   void logEvent(const char* msg, const InputEventData& d) {
     if(!AndroidInputBackend::verboseLogging)
       return;
     if(msg)
-      LOGI("{ \"type\": \"%s\", \"src\": %d, \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"msg\": \"%s\" }",
-           typeToStr(d.type), d.source, d.deviceId, d.keyCode,
-           d.pressed?"true":"false", d.x, d.y, msg);
+      LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
+           typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+           d.pressed?"true":"false", d.x, d.y,
+           static_cast<unsigned long long>(d.eventTime), msg);
     else
-      LOGI("{ \"type\": \"%s\", \"src\": %d, \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f }",
-           typeToStr(d.type), d.source, d.deviceId, d.keyCode,
-           d.pressed?"true":"false", d.x, d.y);
-    }
-
-  // Returns true if two events carry identical data
-  bool sameEvent(const InputEventData& a, const InputEventData& b){
-    return a.type==b.type && a.source==b.source && a.deviceId==b.deviceId &&
-           a.keyCode==b.keyCode && a.pressed==b.pressed &&
-           std::fabs(a.x-b.x)<0.0001f && std::fabs(a.y-b.y)<0.0001f;
-    }
-
-  // Validates that coordinates are finite values
-  bool validCoords(float x,float y){
-    return std::isfinite(x) && std::isfinite(y);
+      LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
+           typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+           d.pressed?"true":"false", d.x, d.y,
+           static_cast<unsigned long long>(d.eventTime));
     }
 
   int32_t mapKey(int32_t k){
@@ -155,7 +163,8 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
     return 0;
 
   InputEventData d;
-  d.source   = AInputEvent_getSource(event);
+  int32_t rawSrc = AInputEvent_getSource(event);
+  d.source   = mapSource(rawSrc);
   d.deviceId = AInputEvent_getDeviceId(event);
 
   switch(AInputEvent_getType(event)) {
@@ -166,12 +175,16 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       bool special = (raw==AKEYCODE_BACK || raw==AKEYCODE_MENU ||
                       raw==AKEYCODE_VOLUME_UP || raw==AKEYCODE_VOLUME_DOWN);
       d.type       = special ? InputEventType::SPECIAL : InputEventType::KEY;
-      if(d.deviceId<0 || d.source==0)
+      d.eventTime  = static_cast<uint64_t>(AKeyEvent_getEventTime(event));
+      if(d.deviceId<0 || rawSrc==0)
         return 0;
 
       if(d.keyCode!=0) {
-        if(sameEvent(d,lastEvent))
+        if(sameEvent(d,lastEvent)) {
+          LOGI("Duplicate event skipped: { \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d }",
+               typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode);
           return 0;
+        }
         lastEvent = d;
         if(keyCb)
           keyCb(d.keyCode, d.pressed);
@@ -184,8 +197,9 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
       break;
       }
     case AINPUT_EVENT_TYPE_MOTION: {
-      d.type = InputEventType::MOTION;
-      if(d.source & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
+      d.type      = InputEventType::MOTION;
+      d.eventTime = static_cast<uint64_t>(AMotionEvent_getEventTime(reinterpret_cast<AMotionEvent*>(event)));
+      if(rawSrc & (AINPUT_SOURCE_JOYSTICK|AINPUT_SOURCE_GAMEPAD)) {
         d.x = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_X, 0);
         d.y = -AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Y, 0);
         float rx = AMotionEvent_getAxisValue(reinterpret_cast<AMotionEvent*>(event), AMOTION_EVENT_AXIS_Z, 0);
@@ -207,8 +221,11 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
             logEvent("joyL", d);
             InputEventData r = d; r.x = rx; r.y = ry; logEvent("joyR", r);
           }
+        } else if(d.deviceId>=0) {
+          LOGI("Duplicate event skipped: { \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d }",
+               typeToStr(d.type), sourceToStr(d.source), d.deviceId);
         }
-      } else if(d.source & AINPUT_SOURCE_TOUCHSCREEN) {
+      } else if(rawSrc & AINPUT_SOURCE_TOUCHSCREEN) {
         size_t cnt = AMotionEvent_getPointerCount(reinterpret_cast<AMotionEvent*>(event));
         for(size_t i=0;i<cnt;++i) {
           d.x = AMotionEvent_getX(reinterpret_cast<AMotionEvent*>(event), i);
@@ -224,6 +241,9 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
               std::snprintf(buf,sizeof(buf),"touch%zu",i);
               logEvent(buf, d);
             }
+          } else if(d.deviceId>=0) {
+            LOGI("Duplicate event skipped: { \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d }",
+                 typeToStr(d.type), sourceToStr(d.source), d.deviceId);
           }
         }
       } else {

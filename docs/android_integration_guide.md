@@ -33,4 +33,15 @@ interfaces implemented in `backend/`.
     validated with `validCoords` and filtered with `sameEvent` before
     dispatch. Verbose output can be toggled with
     `AndroidInputBackend::setVerboseLogging`.
+  - Version 5 records a timestamp (`eventTime`) and the event `source`
+    (`TOUCHSCREEN`, `KEYBOARD`, or `JOYSTICK`). Logged entries now resemble
+    `{ "type": "MOTION", "source": "TOUCHSCREEN", "dev": 2, "key": 0,
+      "pressed": false, "x": 100, "y": 200, "eventTime": 12345 }`. When a
+    duplicate is filtered a debug message like
+    `Duplicate event skipped: { "type": "MOTION", ... }` is printed.
+
+`eventTime` represents the original Android timestamp in milliseconds and
+`source` indicates the origin device after translating the Android input source
+flags. These fields help correlate events with engine behavior and diagnose
+suppression of duplicates.
 
