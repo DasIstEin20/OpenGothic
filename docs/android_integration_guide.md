@@ -49,3 +49,9 @@ suppression of duplicates.
     auto-repeat when held down. Logged key events now include a
     `repeatable` field indicating this classification.
 
+  - Version 7 adds optional input sequence tracking when
+    `ENABLE_SEQUENCE_TRACKING` is defined. Events may include a `sequenceId`
+    that links related actions (e.g., tap or swipe gestures) and a
+    `longPress` flag when the press duration exceeds 500ms. Sequences are
+    grouped when consecutive inputs occur within 200ms of each other.
+

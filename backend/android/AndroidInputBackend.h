@@ -4,6 +4,9 @@
 #include <android/input.h>
 #endif
 #include <cmath>
+#ifdef ENABLE_SEQUENCE_TRACKING
+#include <atomic>
+#endif
 
 enum class InputEventType {
   KEY,         //!< Hardware key press or release from keyboard or gamepad
@@ -31,6 +34,10 @@ struct InputEventData {
   float            x = 0.f;
   float            y = 0.f;
   uint64_t         eventTime = 0;
+#ifdef ENABLE_SEQUENCE_TRACKING
+  uint64_t         sequenceId = 0;
+  bool             longPress  = false;
+#endif
   };
 
 inline bool sameEvent(const InputEventData& a,const InputEventData& b){
@@ -67,6 +74,19 @@ inline bool isRepeatableEvent(const InputEventData& d){
     }
   }
 
+#ifdef ENABLE_SEQUENCE_TRACKING
+/// Generates monotonically increasing identifiers for input sequences
+inline uint64_t generateSequenceId(){
+  static std::atomic_uint64_t seq{1};
+  return seq++;
+  }
+
+/// Helper to detect long press events based on press duration
+inline bool isLongPress(uint64_t start,uint64_t end,uint64_t thresholdMs=500){
+  return (end>start) && ((end-start)>=thresholdMs);
+  }
+#endif
+
 class AndroidInputBackend : public IInputBackend {
   public:
     AndroidInputBackend();
@@ -89,6 +109,13 @@ class AndroidInputBackend : public IInputBackend {
     KeyCallback    keyCb;
     MotionCallback motionCb;
     InputEventData lastEvent{};
+#ifdef ENABLE_SEQUENCE_TRACKING
+    uint64_t       currentSeqId = 0;
+    uint64_t       seqStartTime = 0;
+    uint64_t       lastSeqTime  = 0;
+    int32_t        seqKey       = 0;
+    bool           seqActive    = false;
+#endif
     static bool    verboseLogging;
   };
 
