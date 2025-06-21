@@ -41,16 +41,29 @@ namespace {
   void logEvent(const char* msg, const InputEventData& d) {
     if(!AndroidInputBackend::verboseLogging)
       return;
-    if(msg)
-      LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
-           typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
-           d.pressed?"true":"false", d.x, d.y,
-           static_cast<unsigned long long>(d.eventTime), msg);
-    else
-      LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
-           typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
-           d.pressed?"true":"false", d.x, d.y,
-           static_cast<unsigned long long>(d.eventTime));
+    if(d.type==InputEventType::KEY) {
+      if(msg)
+        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
+             typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+             d.pressed?"true":"false", d.repeatable?"true":"false", d.x, d.y,
+             static_cast<unsigned long long>(d.eventTime), msg);
+      else
+        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"repeatable\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
+             typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+             d.pressed?"true":"false", d.repeatable?"true":"false", d.x, d.y,
+             static_cast<unsigned long long>(d.eventTime));
+    } else {
+      if(msg)
+        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu, \"msg\": \"%s\" }",
+             typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+             d.pressed?"true":"false", d.x, d.y,
+             static_cast<unsigned long long>(d.eventTime), msg);
+      else
+        LOGI("{ \"type\": \"%s\", \"source\": \"%s\", \"dev\": %d, \"key\": %d, \"pressed\": %s, \"x\": %.2f, \"y\": %.2f, \"eventTime\": %llu }",
+             typeToStr(d.type), sourceToStr(d.source), d.deviceId, d.keyCode,
+             d.pressed?"true":"false", d.x, d.y,
+             static_cast<unsigned long long>(d.eventTime));
+    }
     }
 
   int32_t mapKey(int32_t k){
@@ -176,6 +189,7 @@ int32_t AndroidInputBackend::onInputEvent(AInputEvent* event) {
                       raw==AKEYCODE_VOLUME_UP || raw==AKEYCODE_VOLUME_DOWN);
       d.type       = special ? InputEventType::SPECIAL : InputEventType::KEY;
       d.eventTime  = static_cast<uint64_t>(AKeyEvent_getEventTime(event));
+      d.repeatable = isRepeatableEvent(d);
       if(d.deviceId<0 || rawSrc==0)
         return 0;
 

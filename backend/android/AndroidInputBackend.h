@@ -27,6 +27,7 @@ struct InputEventData {
   int32_t          deviceId = 0;
   int32_t          keyCode = 0;
   bool             pressed = false;
+  bool             repeatable = false;
   float            x = 0.f;
   float            y = 0.f;
   uint64_t         eventTime = 0;
@@ -40,6 +41,30 @@ inline bool sameEvent(const InputEventData& a,const InputEventData& b){
 
 inline bool validCoords(float x,float y){
   return std::isfinite(x) && std::isfinite(y);
+  }
+
+/// Determines if a key event can auto-repeat when held down
+inline bool isRepeatableEvent(const InputEventData& d){
+  if(d.source!=InputEventSource::KEYBOARD || d.type!=InputEventType::KEY)
+    return false;
+  switch(d.keyCode){
+    // Letters
+    case 0x1e00: case 0x3000: case 0x2e00: case 0x2000: case 0x1200:
+    case 0x2100: case 0x2200: case 0x2300: case 0x1700: case 0x2400:
+    case 0x2500: case 0x2600: case 0x3200: case 0x3100: case 0x1800:
+    case 0x1900: case 0x1000: case 0x1300: case 0x1f00: case 0x1400:
+    case 0x1600: case 0x2f00: case 0x1100: case 0x2d00: case 0x1500:
+    case 0x2c00:
+    // Numbers
+    case 0x7800: case 0x7900: case 0x7a00: case 0x7b00: case 0x7c00:
+    case 0x7d00: case 0x7e00: case 0x7f00: case 0x8000: case 0x8100:
+    // Arrows and editing
+    case 0xc800: case 0xd000: case 0xcb00: case 0xcd00:
+    case 0x0e00: case 0xd300: case 0x3900: case 0x1c00: case 0x0f00:
+      return true;
+    default:
+      return false;
+    }
   }
 
 class AndroidInputBackend : public IInputBackend {
