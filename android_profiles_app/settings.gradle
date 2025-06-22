@@ -1,0 +1,2 @@
+rootProject.name = "profilesapp"
+include(":app")

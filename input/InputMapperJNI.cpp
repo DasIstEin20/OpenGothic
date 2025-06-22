@@ -34,3 +34,32 @@ Java_com_example_input_InputMapper_nativeSetActiveProfile(JNIEnv* env,jclass,jlo
   env->ReleaseStringUTFChars(name,n);
 }
 
+
+#include <fstream>
+#include <sstream>
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_example_profilesapp_InputMapper_nativeLoadProfile(JNIEnv* env,jobject,jlong ptr,
+                                                           jstring path){
+  auto* mapper = reinterpret_cast<InputMapper::InputMapper*>(ptr);
+  const char* p = env->GetStringUTFChars(path,nullptr);
+  std::ifstream f(p);
+  if(!f.is_open()){
+    env->ReleaseStringUTFChars(path,p);
+    return JNI_FALSE;
+  }
+  std::stringstream ss;
+  ss << f.rdbuf();
+  bool ok = mapper->loadProfile(p, ss.str());
+  env->ReleaseStringUTFChars(path,p);
+  return static_cast<jboolean>(ok);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_profilesapp_InputMapper_nativeActivateProfile(JNIEnv* env,jobject,jlong ptr,
+                                                              jstring name){
+  auto* mapper = reinterpret_cast<InputMapper::InputMapper*>(ptr);
+  const char* n = env->GetStringUTFChars(name,nullptr);
+  mapper->setActiveProfile(n);
+  env->ReleaseStringUTFChars(name,n);
+}
