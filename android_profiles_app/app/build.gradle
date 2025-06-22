@@ -7,6 +7,8 @@ android {
     namespace 'com.example.profilesapp'
     compileSdk 34
 
+    ndkVersion '26.2.11394342'
+
     defaultConfig {
         applicationId 'com.example.profilesapp'
         minSdk 24
@@ -32,6 +34,10 @@ android {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
         }
+    }
+
+    buildFeatures {
+        prefab true
     }
 }
 

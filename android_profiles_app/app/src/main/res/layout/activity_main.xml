@@ -17,6 +17,14 @@
         android:layout_weight="1" />
 
     <TextView
+        android:id="@+id/noHardwareMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No input hardware detected"
+        android:gravity="center"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/actionOverlay"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
