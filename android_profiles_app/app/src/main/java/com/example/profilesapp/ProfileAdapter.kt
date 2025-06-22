@@ -6,9 +6,11 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-class ProfileAdapter(private val items: List<String>,
-                     private val onClick: (String) -> Unit) :
-    RecyclerView.Adapter<ProfileAdapter.VH>() {
+class ProfileAdapter(
+    private var items: List<String>,
+    private val onClick: (String) -> Unit,
+    private val onLongClick: (String) -> Unit = {}
+) : RecyclerView.Adapter<ProfileAdapter.VH>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context)
@@ -19,9 +21,18 @@ class ProfileAdapter(private val items: List<String>,
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.text.text = items[position]
         holder.itemView.setOnClickListener { onClick(items[position]) }
+        holder.itemView.setOnLongClickListener {
+            onLongClick(items[position])
+            true
+        }
     }
 
     override fun getItemCount(): Int = items.size
+
+    fun update(newItems: List<String>) {
+        items = newItems
+        notifyDataSetChanged()
+    }
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val text: TextView = view.findViewById(android.R.id.text1)

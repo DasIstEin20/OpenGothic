@@ -4,24 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/activeProfile"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Active: none" />
-
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/profileList"
+        android:id="@+id/mappingList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <TextView
-        android:id="@+id/actionOverlay"
+    <Button
+        android:id="@+id/saveButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:textColor="#FFFFFF"
-        android:background="#66000000"
-        android:visibility="gone" />
+        android:text="Save" />
+
 </LinearLayout>
