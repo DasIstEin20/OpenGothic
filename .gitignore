@@ -18,6 +18,9 @@ build-*/
 bin/log.txt
 bin/crash.log
 bin/dbg.bin
+.gradle/
+android_profiles_app/.gradle/
+local.properties
 bin/*.sav
 bin/Gothic.ini
 out/*
