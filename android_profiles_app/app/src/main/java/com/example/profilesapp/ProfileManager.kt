@@ -1,7 +1,10 @@
 package com.example.profilesapp
 
 import android.content.Context
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import java.io.File
+import java.io.InputStream
 
 class ProfileManager(private val context: Context) {
     private val dir: File = File(context.filesDir, "profiles").apply { mkdirs() }
@@ -25,6 +28,30 @@ class ProfileManager(private val context: Context) {
     fun saveProfile(name: String, json: String): Boolean {
         return try {
             profileFile(name).writeText(json)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun exportProfiles(dst: File): Boolean {
+        return try {
+            dst.mkdirs()
+            dir.listFiles()?.forEach { f ->
+                f.copyTo(File(dst, f.name), overwrite = true)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun importProfile(uri: Uri, input: InputStream): Boolean {
+        return try {
+            val name = DocumentFile.fromSingleUri(context, uri)?.name ?: return false
+            profileFile(name).outputStream().use { out ->
+                input.copyTo(out)
+            }
             true
         } catch (e: Exception) {
             false
