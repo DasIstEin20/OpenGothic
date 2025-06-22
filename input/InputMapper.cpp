@@ -28,7 +28,7 @@ void InputMapper::setActiveProfile(const std::string& name){
 std::optional<std::string> InputMapper::mapEvent(const InputEvent& ev) const {
   if(!active_)
     return std::nullopt;
-  return active_->actionFor(static_cast<int>(ev.source), ev.code);
+  return active_->actionFor(ev);
 }
 
 }

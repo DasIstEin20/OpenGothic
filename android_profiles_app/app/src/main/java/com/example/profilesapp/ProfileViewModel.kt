@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import android.view.KeyEvent
+import android.view.MotionEvent
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     val activeProfile = MutableLiveData<String>()
@@ -33,6 +34,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun mapKey(event: KeyEvent): String? {
         val res = mapper.mapKeyEvent(event)
+        if (res != null) message.postValue(res)
+        return res
+    }
+
+    fun mapMotion(event: MotionEvent): String? {
+        val axis = MotionEvent.AXIS_X
+        val res = mapper.mapMotionEvent(event.source, axis, event.getAxisValue(axis))
         if (res != null) message.postValue(res)
         return res
     }

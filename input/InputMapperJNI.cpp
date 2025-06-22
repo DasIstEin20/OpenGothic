@@ -77,3 +77,18 @@ Java_com_example_profilesapp_InputMapper_nativeMapEvent(JNIEnv* env,jobject,jlon
     return nullptr;
   return env->NewStringUTF(res->c_str());
 }
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_example_profilesapp_InputMapper_nativeMapMotionEvent(JNIEnv* env,jobject,jlong ptr,
+                                                             jint source,jint axis,jfloat value){
+  auto* mapper = reinterpret_cast<InputMapper::InputMapper*>(ptr);
+  InputMapper::InputEvent ev;
+  ev.type   = InputMapper::EventType::MOTION;
+  ev.source = static_cast<InputMapper::EventSource>(source);
+  ev.code   = axis;
+  ev.value  = value;
+  auto res = mapper->mapEvent(ev);
+  if(!res)
+    return nullptr;
+  return env->NewStringUTF(res->c_str());
+}
