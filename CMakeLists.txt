@@ -82,6 +82,14 @@ target_link_libraries(${PROJECT_NAME} GothicShaders)
 
 include_directories("game")
 
+# InputMapper module
+file(GLOB INPUTMAPPER_SOURCES
+    "input/*.h"
+    "input/*.cpp")
+add_library(InputMapper STATIC ${INPUTMAPPER_SOURCES})
+target_include_directories(InputMapper PUBLIC input external/regoth_legacy/lib/json)
+
+
 ## submodule dependencies
 
 # edd-dbg
