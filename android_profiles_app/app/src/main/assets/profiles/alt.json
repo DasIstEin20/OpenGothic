@@ -1,6 +1,6 @@
 {
   "0": {
-    "1": "walk",
-    "2": "attack"
+    "1": {"name": "walk"},
+    "2": {"name": "attack"}
   }
 }

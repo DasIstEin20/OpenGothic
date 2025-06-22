@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.input.VirtualActionEngine
+import com.example.profilesapp.ProfileLibraryManager
 import org.json.JSONObject
 
 class EditProfileActivity : ComponentActivity() {
@@ -51,7 +53,7 @@ class EditProfileActivity : ComponentActivity() {
     }
 
     class EditProfileViewModel(val app: android.app.Application, val name: String) : ViewModel() {
-        val manager = ProfileManager(app)
+        val manager = ProfileLibraryManager(app)
         val mappings = mutableListOf<MappingAdapter.Mapping>()
 
         init {
@@ -62,7 +64,19 @@ class EditProfileActivity : ComponentActivity() {
                 for (srcKey in json.keys()) {
                     val inner = json.getJSONObject(srcKey)
                     for (codeKey in inner.keys()) {
-                        mappings += MappingAdapter.Mapping(inner.getString(codeKey), srcKey.toInt(), codeKey.toInt())
+                        val v = inner.get(codeKey)
+                        if (v is String) {
+                            mappings += MappingAdapter.Mapping(v, srcKey.toInt(), codeKey.toInt())
+                        } else if (v is JSONObject) {
+                            mappings += MappingAdapter.Mapping(
+                                v.optString("name"),
+                                srcKey.toInt(),
+                                codeKey.toInt(),
+                                v.optDouble("scale",1.0).toFloat(),
+                                v.optBoolean("invert",false),
+                                v.optDouble("deadzone",0.0).toFloat()
+                            )
+                        }
                     }
                 }
             }
@@ -71,13 +85,22 @@ class EditProfileActivity : ComponentActivity() {
         fun updateBinding(idx: Int, src: Int, code: Int) {
             mappings[idx].source = src
             mappings[idx].code = code
+            mappings[idx].scale = 1f
+            mappings[idx].deadzone = 0f
+            mappings[idx].invert = false
         }
 
         fun save(): Boolean {
             val root = JSONObject()
             for (m in mappings) {
                 val obj = root.optJSONObject(m.source.toString()) ?: JSONObject().also { root.put(m.source.toString(), it) }
-                obj.put(m.code.toString(), m.action)
+                val cfg = JSONObject().apply {
+                    put("name", m.action)
+                    put("scale", m.scale)
+                    put("invert", m.invert)
+                    put("deadzone", m.deadzone)
+                }
+                obj.put(m.code.toString(), cfg)
             }
             return manager.saveProfile(name, root.toString())
         }

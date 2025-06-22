@@ -11,13 +11,14 @@ import android.view.InputDevice
 import android.net.Uri
 import java.io.File
 import java.io.InputStream
+import com.example.profilesapp.ProfileLibraryManager
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     val activeProfile = MutableLiveData<String>()
     val profiles = MutableLiveData<List<String>>()
     val message = MutableLiveData<String>()
     private val mapper = InputMapper()
-    private val manager = ProfileManager(application)
+    private val manager = ProfileLibraryManager(application)
 
     init {
         manager.ensureDefaults()
@@ -51,6 +52,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         if (mapper.loadProfile(file.path)) {
             mapper.activateProfile(name)
             activeProfile.postValue(name)
+            message.postValue("Profile $name active")
         } else {
             message.postValue("Failed to load $name")
         }
