@@ -34,6 +34,7 @@
 #include "ui/menuroot.h"
 #include "ui/consolewidget.h"
 #include "ui/touchinput.h"
+#include <xr/IXRBackend.h>
 
 #include "utils/keycodec.h"
 #include "resources.h"
@@ -44,7 +45,7 @@ class Interactive;
 
 class MainWindow : public Tempest::Window {
   public:
-    explicit MainWindow(Tempest::Device& device);
+    explicit MainWindow(Tempest::Device& device, IXRBackend* xr);
     ~MainWindow() override;
 
     float uiScale() const;
@@ -113,6 +114,7 @@ class MainWindow : public Tempest::Window {
       };
 
     Tempest::Device&      device;
+    IXRBackend*           xrBackend_ = nullptr;
     Tempest::Swapchain    swapchain;
     Tempest::TextureAtlas atlas;
     Tempest::Font         font;

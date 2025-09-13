@@ -142,6 +142,9 @@ CommandLine::CommandLine(int argc, const char** argv) {
       if(i<argc)
         isRtSm = (std::string_view(argv[i])!="0" && std::string_view(argv[i])!="false");
       }
+    else if(arg=="--vr" || arg=="-vr") {
+      vr = true;
+      }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
       }
@@ -214,6 +217,10 @@ std::u16string CommandLine::cutscenePath(ScriptLang lang) const {
 
 std::u16string CommandLine::nestedPath(const std::initializer_list<const char16_t*>& name, Tempest::Dir::FileType type) const {
   return FileUtil::nestedPath(gpath, name, type);
+  }
+
+bool CommandLine::isVr() const {
+  return vr;
   }
 
 bool CommandLine::validateGothicPath() const {

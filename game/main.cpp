@@ -23,6 +23,7 @@
 #include "gothic.h"
 #include "build.h"
 #include "commandline.h"
+#include <xr/XR.h>
 
 #include <dmusic.h>
 
@@ -135,12 +136,22 @@ int main(int argc,const char** argv) {
   Tempest::Device      device{*api,gpuName};
   CrashLog::setGpu(device.properties().name);
 
+  XR xr;
+  IXRBackend* xrBackend = nullptr;
+#ifdef OPENXR_ENABLED
+  if(cmd.isVr()) {
+    Tempest::Window tmp;
+    if(xr.initialize(device,tmp))
+      xrBackend = xr.backend();
+  }
+#endif
+
   Resources            resources{device};
   Gothic               gothic;
   GameMusic            music;
   gothic.setupGlobalScripts();
 
-  MainWindow           wx(device);
+  MainWindow           wx(device, xrBackend);
   Tempest::Application app;
   return app.exec();
   }

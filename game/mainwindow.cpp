@@ -28,8 +28,8 @@
 
 using namespace Tempest;
 
-MainWindow::MainWindow(Device& device)
-  : Window(Maximized),device(device),swapchain(device,hwnd()),
+MainWindow::MainWindow(Device& device, IXRBackend* xr)
+  : Window(Maximized),device(device),xrBackend_(xr),swapchain(device,hwnd()),
     atlas(device),renderer(swapchain),
     rootMenu(keycodec),inventory(keycodec),
     dialogs(inventory),document(keycodec),
@@ -120,6 +120,8 @@ MainWindow::MainWindow(Device& device)
 MainWindow::~MainWindow() {
   GameMusic::inst().stopMusic();
   Gothic::inst().cancelLoading();
+  if(xrBackend_)
+    xrBackend_->shutdown();
   device.waitIdle();
   takeWidget(&dialogs);
   takeWidget(&inventory);
@@ -1166,6 +1168,12 @@ void MainWindow::render(){
     const uint64_t dt = tick();
     updateAnimation(dt);
     tickCamera(dt);
+
+    if(xrBackend_!=nullptr) {
+      if(xrBackend_->beginFrame())
+        xrBackend_->endFrame();
+      return;
+      }
 
     auto& sync = fence[cmdId];
     if(!sync.wait(0)) {
