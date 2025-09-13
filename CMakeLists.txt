@@ -13,6 +13,14 @@ set(CMAKE_SKIP_RPATH ON)
 
 add_executable(${PROJECT_NAME})
 
+option(OPENXR_ENABLED "Enable OpenXR support" OFF)
+if(OPENXR_ENABLED)
+  find_package(OpenXR REQUIRED)
+  target_sources(${PROJECT_NAME} PRIVATE src/xr/XR.cpp src/xr/OpenXRBackend.cpp)
+  target_link_libraries(${PROJECT_NAME} OpenXR::openxr_loader)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE OPENXR_ENABLED)
+endif()
+
 if(MSVC)
   add_definitions(-D_USE_MATH_DEFINES)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -82,6 +90,7 @@ add_subdirectory(shader)
 target_link_libraries(${PROJECT_NAME} GothicShaders)
 
 include_directories("game")
+include_directories("include")
 
 ## submodule dependencies
 
