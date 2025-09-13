@@ -1,6 +1,7 @@
 #include "playercontrol.h"
 
 #include <cmath>
+#include <algorithm>
 
 #include "world/objects/npc.h"
 #include "world/objects/item.h"
@@ -536,6 +537,38 @@ bool PlayerControl::tickCameraMove(uint64_t dt) {
     camera->moveBack(dt);
   return true;
   }
+
+void PlayerControl::setVrMove(float strafe, float forward) {
+  movement.strafeRightLeft.analog = std::clamp(strafe,-1.f,1.f);
+  movement.forwardBackward.analog = std::clamp(forward,-1.f,1.f);
+}
+
+void PlayerControl::setVrTurn(float turn) {
+  movement.turnRightLeft.analog = std::clamp(turn,-1.f,1.f);
+}
+
+void PlayerControl::setVrButton(KeyCodec::Action a, bool v) {
+  if(v && !ctrl[a])
+    onKeyPressed(a, Tempest::Event::K_NoKey, KeyCodec::Mapping::Primary);
+  if(!v && ctrl[a])
+    onKeyReleased(a, KeyCodec::Mapping::Primary);
+}
+
+void PlayerControl::setVrJump(bool v) {
+  setVrButton(KeyCodec::Jump, v);
+}
+
+void PlayerControl::setVrAttack(bool v) {
+  setVrButton(KeyCodec::ActionLeft, v);
+}
+
+void PlayerControl::setVrInteract(bool v) {
+  setVrButton(KeyCodec::ActionGeneric, v);
+}
+
+void PlayerControl::setVrMenu(bool v) {
+  setVrButton(KeyCodec::Escape, v);
+}
 
 bool PlayerControl::tickMove(uint64_t dt) {
   auto w = Gothic::inst().world();

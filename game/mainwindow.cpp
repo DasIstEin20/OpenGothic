@@ -10,6 +10,8 @@
 #include <Tempest/Log>
 #include <Tempest/Matrix4x4>
 #include <cmath>
+#include <algorithm>
+#include <Tempest/Vec3>
 
 #include "ui/dialogmenu.h"
 #include "ui/menuroot.h"
@@ -923,6 +925,53 @@ uint64_t MainWindow::tick() {
   inventory.tick(dt);
   Gothic::inst().tick(dt);
   player.tickFocus();
+
+  if(xrBackend_!=nullptr) {
+    xrBackend_->pollInput();
+    const auto& xr = xrBackend_->inputState();
+    player.setVrMove(xr.move.x*CommandLine::inst().vrMoveSpeedScale(),
+                     xr.move.y*CommandLine::inst().vrMoveSpeedScale());
+    player.setVrTurn(xr.turnX);
+    player.setVrJump(xr.jump);
+    player.setVrAttack(xr.attack);
+    player.setVrInteract(xr.interact);
+    player.setVrMenu(xr.menu);
+
+    if(xr.attack && !vrAttackPrev)
+      xrBackend_->hapticPulse(0.5f,0.05f);
+    vrAttackPrev = xr.attack;
+
+    if(CommandLine::inst().vrIsSmoothTurn()) {
+      vrSnapYaw += xr.turnX * CommandLine::inst().vrTurnSpeed() * (float(dt)/1000.f) * float(M_PI/180.0);
+    } else {
+      float dz = CommandLine::inst().vrTurnDeadzone();
+      if(std::fabs(xr.turnX) > dz) {
+        uint64_t now = Tempest::Application::tickCount();
+        if(now - vrSnapTime > uint64_t(CommandLine::inst().vrSnapCooldown())) {
+          float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
+          vrSnapYaw += (xr.turnX>0.f?1.f:-1.f)*step;
+          vrSnapTime = now;
+        }
+      }
+    }
+
+    if(CommandLine::inst().vrTeleport() && xr.teleportClick && !vrTelePrev && xr.aim.valid) {
+      auto w = Gothic::inst().world();
+      auto pl = w ? w->player() : nullptr;
+      if(pl!=nullptr) {
+        Tempest::Vec3 pos = pl->position();
+        float t = 0.f;
+        if(std::fabs(xr.aim.dir.y) > 1e-3f)
+          t = (pos.y - xr.aim.pos.y)/xr.aim.dir.y;
+        t = std::clamp(t,0.f,5.f);
+        Tempest::Vec3 dst = xr.aim.pos + xr.aim.dir*t;
+        dst.y = pos.y;
+        pl->setPosition(dst);
+        xrBackend_->hapticPulse(0.5f,0.05f);
+      }
+    }
+    vrTelePrev = xr.teleportClick;
+  }
 
   if(dialogs.isActive())
     ;//clearInput();

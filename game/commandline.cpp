@@ -189,9 +189,73 @@ CommandLine::CommandLine(int argc, const char** argv) {
       }
       vrSnap = std::clamp(snap,5,90);
     }
+    else if(arg.rfind("--vr-teleport",0)==0) {
+      vrUseTeleport = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrUseTeleport = (val!="off" && val!="0");
+      }
+    }
+    else if(arg.rfind("--vr-turn-mode",0)==0) {
+      vrTurnSmooth = false;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrTurnSmooth = (val=="smooth");
+      }
+    }
+    else if(arg.rfind("--vr-turn-speed",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrTurnSpeedVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrTurnSpeedVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-turn-deadzone",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrTurnDeadzone = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrTurnDeadzone = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-snap-cooldown-ms",0)==0) {
+      int cd = 250;
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          cd = std::stoi(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          cd = std::stoi(argv[++i]);
+      } catch(...) {}
+      vrSnapCooldown = std::clamp(cd,100,1000);
+    }
+    else if(arg.rfind("--vr-move-speed-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrMoveScale = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrMoveScale = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-vignette-strength",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrVignette = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrVignette = std::stof(argv[++i]);
+      } catch(...) {}
+      vrVignette = std::clamp(vrVignette,0.f,1.f);
+    }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
-      }
+    }
     }
 
   if(gpath.empty()) {

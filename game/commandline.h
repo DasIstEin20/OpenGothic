@@ -52,6 +52,13 @@ class CommandLine {
     float               vrHeightOffset()  const { return vrHeight;      }
     bool                vrAllowRoll()     const { return allowRoll;     }
     int                 vrSnapAngle()     const { return vrSnap;        }
+    bool                vrTeleport()      const { return vrUseTeleport; }
+    bool                vrIsSmoothTurn()  const { return vrTurnSmooth;  }
+    float               vrTurnSpeed()     const { return vrTurnSpeedVal;}
+    float               vrTurnDeadzone()  const { return vrTurnDeadzone;}
+    int                 vrSnapCooldown()  const { return vrSnapCooldown;}
+    float               vrMoveSpeedScale()const { return vrMoveScale;   }
+    float               vrVignetteStrength() const { return vrVignette; }
     std::string_view    defaultSave()      const { return saveDef;    }
 
     std::string         wrldDef;
@@ -89,5 +96,12 @@ class CommandLine {
     float               vrHeight      = 1.75f;
     bool                allowRoll     = false;
     int                 vrSnap        = 30;
+    bool                vrUseTeleport = true;
+    bool                vrTurnSmooth  = false;
+    float               vrTurnSpeedVal= 120.f;
+    float               vrTurnDeadzone= 0.25f;
+    int                 vrSnapCooldown= 250;
+    float               vrMoveScale   = 1.f;
+    float               vrVignette    = 0.f;
   };
 

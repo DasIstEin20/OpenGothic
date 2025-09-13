@@ -121,6 +121,12 @@ static Tempest::Vec3 rotateInv(const XrQuaternionf& q, const Tempest::Vec3& v) {
   return rotate(XrQuaternionf{-q.x,-q.y,-q.z,q.w}, v);
 }
 
+static XrPath stringToPath(XrInstance inst, const char* str) {
+  XrPath p = XR_NULL_PATH;
+  xrStringToPath(inst,str,&p);
+  return p;
+}
+
 static XrQuaternionf removeRoll(const XrQuaternionf& q) {
   const float ysqr = q.y*q.y;
   float t0 = 2.f*(q.w*q.y + q.x*q.z);
@@ -241,6 +247,86 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   Tempest::Log::i("Reference space: LOCAL");
   Tempest::Log::i("Head space: VIEW");
 
+  // action set
+  xrStringToPath(instance,"/user/hand/left", &handPath[0]);
+  xrStringToPath(instance,"/user/hand/right",&handPath[1]);
+
+  XrActionSetCreateInfo asci{XR_TYPE_ACTION_SET_CREATE_INFO};
+  std::strcpy(asci.actionSetName,"gameplay");
+  std::strcpy(asci.localizedActionSetName,"Gameplay");
+  asci.priority = 0;
+  xrCreateActionSet(instance,&asci,&actionSet);
+
+  auto makeAction = [&](XrAction& dst, XrActionType type, const char* name, const char* lname, XrPath* sub=nullptr, uint32_t cnt=0) {
+    XrActionCreateInfo ac{XR_TYPE_ACTION_CREATE_INFO};
+    ac.actionSet = actionSet;
+    ac.actionType = type;
+    std::strncpy(ac.actionName,name,XR_MAX_ACTION_NAME_SIZE);
+    std::strncpy(ac.localizedActionName,lname,XR_MAX_LOCALIZED_ACTION_NAME_SIZE);
+    ac.countSubactionPaths = cnt;
+    ac.subactionPaths = sub;
+    xrCreateAction(actionSet,&ac,&dst);
+  };
+
+  makeAction(moveAction, XR_ACTION_TYPE_VECTOR2F_INPUT, "move", "Move", &handPath[0],1);
+  makeAction(turnAction, XR_ACTION_TYPE_VECTOR2F_INPUT, "turn", "Turn", &handPath[1],1);
+  makeAction(jumpAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "jump", "Jump");
+  makeAction(attackAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "attack", "Attack");
+  makeAction(interactAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "interact", "Interact");
+  makeAction(menuAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "menu", "Menu");
+  makeAction(teleportAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "teleport_click", "Teleport");
+  makeAction(aimPoseAction, XR_ACTION_TYPE_POSE_INPUT, "aim_pose", "Aim Pose", &handPath[1],1);
+  makeAction(hapticAction, XR_ACTION_TYPE_VIBRATION_OUTPUT, "haptic", "Haptic", &handPath[1],1);
+
+  auto path = [&](const char* s) { return stringToPath(instance,s); };
+  std::vector<XrActionSuggestedBinding> oculus = {
+    {moveAction,      path("/user/hand/left/input/thumbstick")},
+    {turnAction,      path("/user/hand/right/input/thumbstick")},
+    {jumpAction,      path("/user/hand/left/input/x/click")},
+    {interactAction,  path("/user/hand/right/input/a/click")},
+    {menuAction,      path("/user/hand/right/input/b/click")},
+    {attackAction,    path("/user/hand/right/input/trigger/click")},
+    {teleportAction,  path("/user/hand/left/input/trigger/click")},
+    {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
+    {hapticAction,    path("/user/hand/right/output/haptic")}
+  };
+  XrInteractionProfileSuggestedBinding suggested{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+  suggested.interactionProfile = path("/interaction_profiles/oculus/touch_controller");
+  suggested.countSuggestedBindings = (uint32_t)oculus.size();
+  suggested.suggestedBindings = oculus.data();
+  xrSuggestInteractionProfileBindings(instance,&suggested);
+
+  XrPath wmrProfile = stringToPath(instance,"/interaction_profiles/microsoft/motion_controller");
+  if(wmrProfile!=XR_NULL_PATH) {
+    std::vector<XrActionSuggestedBinding> wmr = {
+      {moveAction,      path("/user/hand/left/input/thumbstick")},
+      {turnAction,      path("/user/hand/right/input/thumbstick")},
+      {jumpAction,      path("/user/hand/left/input/squeeze/click")},
+      {interactAction,  path("/user/hand/right/input/trigger/click")},
+      {menuAction,      path("/user/hand/right/input/menu/click")},
+      {attackAction,    path("/user/hand/right/input/trigger/click")},
+      {teleportAction,  path("/user/hand/left/input/trigger/click")},
+      {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
+      {hapticAction,    path("/user/hand/right/output/haptic")}
+    };
+    XrInteractionProfileSuggestedBinding sb{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+    sb.interactionProfile = wmrProfile;
+    sb.countSuggestedBindings = (uint32_t)wmr.size();
+    sb.suggestedBindings = wmr.data();
+    xrSuggestInteractionProfileBindings(instance,&sb);
+  }
+
+  XrSessionActionSetsAttachInfo attach{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
+  attach.countActionSets = 1;
+  attach.actionSets      = &actionSet;
+  xrAttachSessionActionSets(session,&attach);
+
+  XrActionSpaceCreateInfo asci2{XR_TYPE_ACTION_SPACE_CREATE_INFO};
+  asci2.action = aimPoseAction;
+  asci2.subactionPath = handPath[1];
+  asci2.poseInActionSpace.orientation.w = 1.f;
+  xrCreateActionSpace(session,&asci2,&aimSpace);
+
   Tempest::Log::i("View configuration: PRIMARY_STEREO");
 
   XrViewConfigurationType viewType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
@@ -294,6 +380,14 @@ void OpenXRBackend::shutdown() {
     if(e.swapchain!=XR_NULL_HANDLE)
       xrDestroySwapchain(e.swapchain);
     e.swapchain = XR_NULL_HANDLE;
+  }
+  if(aimSpace!=XR_NULL_HANDLE) {
+    xrDestroySpace(aimSpace);
+    aimSpace = XR_NULL_HANDLE;
+  }
+  if(actionSet!=XR_NULL_HANDLE) {
+    xrDestroyActionSet(actionSet);
+    actionSet = XR_NULL_HANDLE;
   }
   if(headSpace!=XR_NULL_HANDLE) {
     xrDestroySpace(headSpace);
@@ -430,6 +524,81 @@ std::array<EyeInfo,2> OpenXRBackend::views() const {
     ret[i].color = eyes[i].color;
   }
   return ret;
+}
+
+void OpenXRBackend::pollInput() {
+  input = {};
+  if(session==XR_NULL_HANDLE || actionSet==XR_NULL_HANDLE)
+    return;
+
+  XrActiveActionSet act{actionSet, XR_NULL_PATH};
+  XrActionsSyncInfo sync{XR_TYPE_ACTIONS_SYNC_INFO};
+  sync.countActiveActionSets = 1;
+  sync.activeActionSets      = &act;
+  if(xrSyncActions(session,&sync)!=XR_SUCCESS)
+    return;
+
+  XrActionStateGetInfo gi{XR_TYPE_ACTION_STATE_GET_INFO};
+  XrActionStateVector2f v2{XR_TYPE_ACTION_STATE_VECTOR2F};
+  gi.action = moveAction;
+  xrGetActionStateVector2f(session,&gi,&v2);
+  if(v2.isActive) {
+    input.haveControllers = true;
+    input.move = {v2.currentState.x, v2.currentState.y};
+  }
+
+  gi.action = turnAction;
+  xrGetActionStateVector2f(session,&gi,&v2);
+  if(v2.isActive) {
+    input.haveControllers = true;
+    input.turnX = v2.currentState.x;
+  }
+
+  XrActionStateBoolean b{XR_TYPE_ACTION_STATE_BOOLEAN};
+  gi.action = jumpAction;
+  xrGetActionStateBoolean(session,&gi,&b);
+  input.jump = b.currentState;
+
+  gi.action = attackAction;
+  xrGetActionStateBoolean(session,&gi,&b);
+  input.attack = b.currentState;
+
+  gi.action = interactAction;
+  xrGetActionStateBoolean(session,&gi,&b);
+  input.interact = b.currentState;
+
+  gi.action = menuAction;
+  xrGetActionStateBoolean(session,&gi,&b);
+  input.menu = b.currentState;
+
+  gi.action = teleportAction;
+  xrGetActionStateBoolean(session,&gi,&b);
+  input.teleportClick = b.currentState;
+
+  if(aimSpace!=XR_NULL_HANDLE) {
+    XrSpaceLocation loc{XR_TYPE_SPACE_LOCATION};
+    if(xrLocateSpace(aimSpace, refSpace, frameState.predictedDisplayTime, &loc)==XR_SUCCESS) {
+      const XrSpaceLocationFlags req = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+      if((loc.locationFlags & req)==req) {
+        input.aim.valid = true;
+        input.aim.pos   = toVec3(loc.pose.position);
+        input.aim.dir   = rotate(loc.pose.orientation, Tempest::Vec3{0,0,-1});
+      }
+    }
+  }
+}
+
+void OpenXRBackend::hapticPulse(float amplitude, float seconds) {
+  if(session==XR_NULL_HANDLE || hapticAction==XR_NULL_HANDLE)
+    return;
+  XrHapticVibration vib{XR_TYPE_HAPTIC_VIBRATION};
+  vib.amplitude = amplitude;
+  vib.duration  = XrDuration(uint64_t(seconds*1e9));
+  vib.frequency = XR_FREQUENCY_UNSPECIFIED;
+  XrHapticActionInfo hi{XR_TYPE_HAPTIC_ACTION_INFO};
+  hi.action = hapticAction;
+  hi.subactionPath = handPath[1];
+  xrApplyHapticFeedback(session,&hi,(XrHapticBaseHeader*)&vib);
 }
 
 #endif

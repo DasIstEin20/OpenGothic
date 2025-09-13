@@ -46,6 +46,13 @@ class PlayerControl final {
     bool  tickMove(uint64_t dt);
     bool  tickCameraMove(uint64_t dt);
 
+    void  setVrMove(float strafe, float forward);
+    void  setVrTurn(float turn);
+    void  setVrJump(bool v);
+    void  setVrAttack(bool v);
+    void  setVrInteract(bool v);
+    void  setVrMenu(bool v);
+
   private:
     enum WeaponAction : uint8_t {
       WeaponClose,
@@ -75,16 +82,18 @@ class PlayerControl final {
 
     using Action=KeyCodec::Action;
 
-    struct AxisStatus { 
+    struct AxisStatus {
         /// Main direction (e.g. W or Up arrow)
         std::array<bool, KeyCodec::NumMappings> main;
-        
+
         /// Reverse direction (e.g. S or Down arrow)
         std::array<bool, KeyCodec::NumMappings> reverse;
 
+        float analog = 0.f;
+
         /// Current axis value (scale from -1 to 1)
         auto value() const -> float {
-          return
+          return analog +
               (this->anyMain() ? 1.f : 0.f)
             + (this->anyReverse() ? -1.f : 0.f);
           }
@@ -98,6 +107,7 @@ class PlayerControl final {
         void reset() {
           this->main.fill(false);
           this->reverse.fill(false);
+          analog = 0.f;
           }
 
       private:
@@ -175,6 +185,7 @@ class PlayerControl final {
     void           assignRunAngle(Npc& pl, float rotation, uint64_t dt);
     void           setAnimRotate (Npc& pl, float rotation, int anim, bool force, uint64_t dt);
     void           processAutoRotate(Npc& pl, float& rot, uint64_t dt);
+    void           setVrButton(KeyCodec::Action a, bool v);
 
 
     //////////////////////////////////
