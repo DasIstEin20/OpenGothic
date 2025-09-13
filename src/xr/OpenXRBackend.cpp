@@ -5,6 +5,8 @@
 #include <Tempest/Device>
 #include <Tempest/Window>
 
+#include "../game/commandline.h"
+
 #include <cstring>
 #include <vector>
 #include <algorithm>
@@ -91,6 +93,57 @@ static Tempest::TextureFormat toTexFormat(VkFormat f) {
   return Tempest::TextureFormat::RGBA8;
 }
 
+static Tempest::Vec3 toVec3(const XrVector3f& v) {
+  return Tempest::Vec3{v.x,v.y,v.z};
+}
+
+static XrVector3f toXr(const Tempest::Vec3& v) {
+  return XrVector3f{v.x,v.y,v.z};
+}
+
+static Tempest::Vec3 rotate(const XrQuaternionf& q, const Tempest::Vec3& v) {
+  const float xx = q.x*q.x;
+  const float yy = q.y*q.y;
+  const float zz = q.z*q.z;
+  const float xy = q.x*q.y;
+  const float xz = q.x*q.z;
+  const float yz = q.y*q.z;
+  const float wx = q.w*q.x;
+  const float wy = q.w*q.y;
+  const float wz = q.w*q.z;
+  return Tempest::Vec3{
+      (1.f-2.f*yy-2.f*zz)*v.x + 2.f*(xy-wz)*v.y + 2.f*(xz+wy)*v.z,
+      2.f*(xy+wz)*v.x + (1.f-2.f*xx-2.f*zz)*v.y + 2.f*(yz-wx)*v.z,
+      2.f*(xz-wy)*v.x + 2.f*(yz+wx)*v.y + (1.f-2.f*xx-2.f*yy)*v.z};
+}
+
+static Tempest::Vec3 rotateInv(const XrQuaternionf& q, const Tempest::Vec3& v) {
+  return rotate(XrQuaternionf{-q.x,-q.y,-q.z,q.w}, v);
+}
+
+static XrQuaternionf removeRoll(const XrQuaternionf& q) {
+  const float ysqr = q.y*q.y;
+  float t0 = 2.f*(q.w*q.y + q.x*q.z);
+  float t1 = 1.f - 2.f*(ysqr + q.z*q.z);
+  float yaw = std::atan2(t0,t1);
+
+  float t2 = 2.f*(q.w*q.x - q.z*q.y);
+  t2 = std::clamp(t2,-1.f,1.f);
+  float pitch = std::asin(t2);
+
+  float cy = std::cos(yaw*0.5f);
+  float sy = std::sin(yaw*0.5f);
+  float cp = std::cos(pitch*0.5f);
+  float sp = std::sin(pitch*0.5f);
+
+  XrQuaternionf r{};
+  r.w = cy*cp;
+  r.x = cy*sp;
+  r.y = sy*cp;
+  r.z = -sy*sp;
+  return r;
+}
+
 }
 
 OpenXRBackend::OpenXRBackend() = default;
@@ -101,6 +154,11 @@ OpenXRBackend::~OpenXRBackend() {
 bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   (void)win;
   device = &dev;
+
+  auto& cmd = CommandLine::inst();
+  firstPerson  = cmd.isVrFirstPerson();
+  heightOffset = cmd.vrHeightOffset();
+  allowRoll    = cmd.vrAllowRoll();
 
   uint32_t extCount = 0;
   xrEnumerateInstanceExtensionProperties(nullptr, 0, &extCount, nullptr);
@@ -165,11 +223,23 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   XrReferenceSpaceCreateInfo rs{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
   rs.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
   rs.poseInReferenceSpace.orientation.w = 1.f;
-  if(xrCreateReferenceSpace(session,&rs,&space)!=XR_SUCCESS) {
+  if(xrCreateReferenceSpace(session,&rs,&refSpace)!=XR_SUCCESS) {
     Tempest::Log::e("xrCreateReferenceSpace failed");
     shutdown();
     return false;
   }
+
+  XrReferenceSpaceCreateInfo hs{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+  hs.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+  hs.poseInReferenceSpace.orientation.w = 1.f;
+  if(xrCreateReferenceSpace(session,&hs,&headSpace)!=XR_SUCCESS) {
+    Tempest::Log::e("xrCreateReferenceSpace VIEW failed");
+    shutdown();
+    return false;
+  }
+
+  Tempest::Log::i("Reference space: LOCAL");
+  Tempest::Log::i("Head space: VIEW");
 
   Tempest::Log::i("View configuration: PRIMARY_STEREO");
 
@@ -225,9 +295,13 @@ void OpenXRBackend::shutdown() {
       xrDestroySwapchain(e.swapchain);
     e.swapchain = XR_NULL_HANDLE;
   }
-  if(space!=XR_NULL_HANDLE) {
-    xrDestroySpace(space);
-    space = XR_NULL_HANDLE;
+  if(headSpace!=XR_NULL_HANDLE) {
+    xrDestroySpace(headSpace);
+    headSpace = XR_NULL_HANDLE;
+  }
+  if(refSpace!=XR_NULL_HANDLE) {
+    xrDestroySpace(refSpace);
+    refSpace = XR_NULL_HANDLE;
   }
   if(session!=XR_NULL_HANDLE) {
     xrDestroySession(session);
@@ -250,10 +324,19 @@ bool OpenXRBackend::beginFrame() {
   if(xrBeginFrame(session,&bi)!=XR_SUCCESS)
     return false;
 
+  XrSpaceLocation headLoc{XR_TYPE_SPACE_LOCATION};
+  if(xrLocateSpace(headSpace, refSpace, frameState.predictedDisplayTime, &headLoc)==XR_SUCCESS) {
+    const XrSpaceLocationFlags req = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    if((headLoc.locationFlags & req)==req) {
+      headPose = headLoc.pose;
+      hasPose  = true;
+    }
+  }
+
   XrViewLocateInfo vi{XR_TYPE_VIEW_LOCATE_INFO};
   vi.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
   vi.displayTime = frameState.predictedDisplayTime;
-  vi.space       = space;
+  vi.space       = refSpace;
 
   uint32_t viewCount = eyes.size();
   std::vector<XrView> xrViews(viewCount, {XR_TYPE_VIEW});
@@ -261,10 +344,29 @@ bool OpenXRBackend::beginFrame() {
   if(xrLocateViews(session,&vi,&vs,viewCount,&viewCount,xrViews.data())!=XR_SUCCESS)
     return false;
 
+  XrQuaternionf headQ = headPose.orientation;
+  if(hasPose && !allowRoll)
+    headQ = removeRoll(headPose.orientation);
+  Tempest::Vec3 headPos = toVec3(headPose.position);
+  headPos.y += heightOffset;
+
   for(uint32_t i=0;i<viewCount && i<eyes.size();++i) {
-    eyes[i].view    = xrViews[i];
-    eyes[i].projMat = toTempest(xrMatProjection(xrViews[i].fov, 0.1f, 1000.f));
-    eyes[i].viewMat = toTempest(xrMatView(xrViews[i].pose));
+    XrPosef pose = xrViews[i].pose;
+    if(hasPose) {
+      Tempest::Vec3 eyePos   = toVec3(xrViews[i].pose.position);
+      Tempest::Vec3 offset   = eyePos - toVec3(headPose.position);
+      Tempest::Vec3 offLocal = rotateInv(headPose.orientation, offset);
+      Tempest::Vec3 pos      = rotate(headQ, offLocal) + headPos;
+      pose.orientation = headQ;
+      pose.position    = toXr(pos);
+    } else {
+      pose.position.y += heightOffset;
+    }
+
+    eyes[i].view.pose = pose;
+    eyes[i].view.fov  = xrViews[i].fov;
+    eyes[i].projMat   = toTempest(xrMatProjection(xrViews[i].fov, 0.1f, 1000.f));
+    eyes[i].viewMat   = toTempest(xrMatView(pose));
 
     XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
     xrAcquireSwapchainImage(eyes[i].swapchain,&ai,&eyes[i].acquired);
@@ -274,6 +376,11 @@ bool OpenXRBackend::beginFrame() {
 
     auto& img = eyes[i].images[eyes[i].acquired];
     eyes[i].color = Tempest::Attachment(*device, img.image, eyes[i].width, eyes[i].height, toTexFormat(eyes[i].format));
+  }
+
+  if(firstPerson && !loggedFp) {
+    Tempest::Log::d("VR first-person camera: height ", heightOffset, " allow roll ", allowRoll);
+    loggedFp = true;
   }
 
   return true;
@@ -299,7 +406,7 @@ void OpenXRBackend::endFrame() {
   }
 
   XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
-  layer.space     = space;
+  layer.space     = refSpace;
   layer.viewCount = (uint32_t)pv.size();
   layer.views     = pv.data();
 

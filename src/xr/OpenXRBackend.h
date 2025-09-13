@@ -39,10 +39,17 @@ private:
 
   std::array<Eye,2> eyes;
 
-  XrInstance    instance = XR_NULL_HANDLE;
-  XrSystemId    systemId = XR_NULL_SYSTEM_ID;
-  XrSession     session  = XR_NULL_HANDLE;
-  XrSpace       space    = XR_NULL_HANDLE;
+  XrInstance    instance   = XR_NULL_HANDLE;
+  XrSystemId    systemId   = XR_NULL_SYSTEM_ID;
+  XrSession     session    = XR_NULL_HANDLE;
+  XrSpace       refSpace   = XR_NULL_HANDLE;
+  XrSpace       headSpace  = XR_NULL_HANDLE;
+  XrPosef       headPose{{0,0,0,1},{0,0,0}};
+  bool          hasPose    = false;
+  bool          firstPerson = true;
+  float         heightOffset = 1.75f;
+  bool          allowRoll    = false;
+  bool          loggedFp     = false;
   XrFrameState  frameState{XR_TYPE_FRAME_STATE};
 };
 #endif

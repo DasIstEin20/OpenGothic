@@ -145,6 +145,35 @@ CommandLine::CommandLine(int argc, const char** argv) {
     else if(arg=="--vr" || arg=="-vr") {
       vr = true;
       }
+    else if(arg.rfind("--vr-first-person",0)==0) {
+      vrFirstPerson = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrFirstPerson = (val!="0" && val!="off");
+      }
+      }
+    else if(arg.rfind("--vr-height-offset",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          vrHeight = std::stof(std::string(arg.substr(p+1)));
+        } else {
+          ++i;
+          if(i<argc)
+            vrHeight = std::stof(argv[i]);
+        }
+      } catch(...) {
+      }
+      }
+    else if(arg.rfind("--vr-allow-roll",0)==0) {
+      allowRoll = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        allowRoll = (val!="0" && val!="off");
+      }
+      }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
       }

@@ -48,6 +48,9 @@ class CommandLine {
     bool                doForceG2NR()      const { return forceG2NR;    }
     bool                aaPreset()         const { return aaPresetId;   }
     bool                isVr()            const;
+    bool                isVrFirstPerson() const { return vrFirstPerson; }
+    float               vrHeightOffset()  const { return vrHeight;      }
+    bool                vrAllowRoll()     const { return allowRoll;     }
     std::string_view    defaultSave()      const { return saveDef;    }
 
     std::string         wrldDef;
@@ -81,5 +84,8 @@ class CommandLine {
     bool                forceG2NR    = false;
     uint32_t            aaPresetId = 0;
     bool                vr          = false;
+    bool                vrFirstPerson = true;
+    float               vrHeight      = 1.75f;
+    bool                allowRoll     = false;
   };
 

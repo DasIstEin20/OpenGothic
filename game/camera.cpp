@@ -256,7 +256,19 @@ void Camera::onRotateMouse(const PointF& dpos) {
   dst.spin.y += dpos.y;
   }
 
+void Camera::setExternalViewProj(const Matrix4x4* view, const Matrix4x4* proj) {
+  extView = view;
+  extProj = proj;
+  }
+
+void Camera::clearExternalViewProj() {
+  extView = nullptr;
+  extProj = nullptr;
+  }
+
 Matrix4x4 Camera::projective() const {
+  if(extProj!=nullptr)
+    return *extProj;
   auto ret = proj;
   if(auto w = Gothic::inst().world())
     w->globalFx()->morph(ret);
@@ -917,6 +929,8 @@ Matrix4x4 Camera::viewProj() const {
   }
 
 Matrix4x4 Camera::view() const {
+  if(extView!=nullptr)
+    return *extView;
   auto spin = src.spin+offsetAng;
   return mkView(origin,spin);
   }
