@@ -55,17 +55,18 @@ class CommandLine {
     bool                vrTeleport()      const { return vrUseTeleport; }
     bool                vrIsSmoothTurn()  const { return vrTurnSmooth;  }
     float               vrTurnSpeed()     const { return vrTurnSpeedVal;}
-    float               vrTurnDeadzone()  const { return vrTurnDeadzone;}
-    int                 vrSnapCooldown()  const { return vrSnapCooldown;}
+    float               vrTurnDeadzone()  const { return vrTurnDeadzoneVal;}
+    int                 vrSnapCooldown()  const { return vrSnapCooldownVal;}
     float               vrMoveSpeedScale()const { return vrMoveScale;   }
     float               vrVignetteStrength() const { return vrVignette; }
 
-    float               vrHudDistance()   const { return vrHudDist;    }
-    float               vrHudWidth()      const { return vrHudWidth;   }
-    float               vrHudScale()      const { return vrHudScale;   }
-    float               vrHudPitchDeg()   const { return vrHudPitch;   }
-    bool                vrHudFollow()     const { return vrHudFollow;  }
-    float               vrHudResScale()   const { return vrHudRes;     }
+      // VR HUD parameters
+      float               vrHudDistance()   const { return vrHudDist;    }
+      float               vrHudWidth()      const { return vrHudWidthVal;   }
+      float               vrHudScale()      const { return vrHudScaleVal;   }
+      float               vrHudPitchDeg()   const { return vrHudPitch;   }
+      bool                vrHudFollow()     const { return vrHudFollowVal;  }
+      float               vrHudResScale()   const { return vrHudRes;     }
     std::string_view    defaultSave()      const { return saveDef;    }
 
     std::string         wrldDef;
@@ -106,15 +107,15 @@ class CommandLine {
     bool                vrUseTeleport = true;
     bool                vrTurnSmooth  = false;
     float               vrTurnSpeedVal= 120.f;
-    float               vrTurnDeadzone= 0.25f;
-    int                 vrSnapCooldown= 250;
+    float               vrTurnDeadzoneVal= 0.25f;
+    int                 vrSnapCooldownVal= 250;
     float               vrMoveScale   = 1.f;
     float               vrVignette    = 0.f;
     float               vrHudDist     = 1.4f;
-    float               vrHudWidth    = 1.0f;
-    float               vrHudScale    = 1.0f;
+    float               vrHudWidthVal = 1.0f;
+    float               vrHudScaleVal = 1.0f;
     float               vrHudPitch    = -10.f;
-    bool                vrHudFollow   = true;
+    bool                vrHudFollowVal= true;
     float               vrHudRes      = 1.0f;
   };
 

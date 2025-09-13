@@ -218,13 +218,13 @@ CommandLine::CommandLine(int argc, const char** argv) {
       auto p = arg.find('=');
       try {
         if(p!=std::string_view::npos)
-          vrTurnDeadzone = std::stof(std::string(arg.substr(p+1)));
+          vrTurnDeadzoneVal = std::stof(std::string(arg.substr(p+1)));
         else if(i+1<argc)
-          vrTurnDeadzone = std::stof(argv[++i]);
+          vrTurnDeadzoneVal = std::stof(argv[++i]);
       } catch(...) {}
     }
     else if(arg.rfind("--vr-snap-cooldown-ms",0)==0) {
-      int cd = 250;
+      int cd = vrSnapCooldownVal;
       auto p = arg.find('=');
       try {
         if(p!=std::string_view::npos)
@@ -232,7 +232,7 @@ CommandLine::CommandLine(int argc, const char** argv) {
         else if(i+1<argc)
           cd = std::stoi(argv[++i]);
       } catch(...) {}
-      vrSnapCooldown = std::clamp(cd,100,1000);
+      vrSnapCooldownVal = std::clamp(cd,100,1000);
     }
     else if(arg.rfind("--vr-move-speed-scale",0)==0) {
       auto p = arg.find('=');
@@ -266,20 +266,21 @@ CommandLine::CommandLine(int argc, const char** argv) {
       auto p = arg.find('=');
       try {
         if(p!=std::string_view::npos)
-          vrHudWidth = std::stof(std::string(arg.substr(p+1)));
+          vrHudWidthVal = std::stof(std::string(arg.substr(p+1)));
         else if(i+1<argc)
-          vrHudWidth = std::stof(argv[++i]);
+          vrHudWidthVal = std::stof(argv[++i]);
       } catch(...) {}
     }
-    else if(arg.rfind("--vr-hud-scale",0)==0) {
-      auto p = arg.find('=');
-      try {
-        if(p!=std::string_view::npos)
-          vrHudScale = std::stof(std::string(arg.substr(p+1)));
-        else if(i+1<argc)
-          vrHudScale = std::stof(argv[++i]);
-      } catch(...) {}
-    }
+      else if(arg.rfind("--vr-hud-scale",0)==0) {
+        auto p = arg.find('=');
+        try {
+          if(p!=std::string_view::npos)
+            vrHudScaleVal = std::stof(std::string(arg.substr(p+1)));
+          else if(i+1<argc)
+            vrHudScaleVal = std::stof(argv[++i]);
+        } catch(...) {}
+        vrHudScaleVal = std::clamp(vrHudScaleVal,0.5f,2.f);
+      }
     else if(arg.rfind("--vr-hud-pitch-deg",0)==0) {
       auto p = arg.find('=');
       try {
@@ -297,7 +298,7 @@ CommandLine::CommandLine(int argc, const char** argv) {
       else if(i+1<argc)
         v = argv[++i];
       if(!v.empty()) {
-        vrHudFollow = !(v=="off" || v=="0" || v=="false");
+        vrHudFollowVal = !(v=="off" || v=="0" || v=="false");
       }
     }
     else if(arg.rfind("--vr-hud-res-scale",0)==0) {

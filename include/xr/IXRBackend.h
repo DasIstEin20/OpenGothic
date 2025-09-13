@@ -5,7 +5,7 @@
 #include <Tempest/Vec2>
 #include <Tempest/Vec3>
 #include <Tempest/Vec4>
-#include <vulkan/vulkan.h>
+
 namespace Tempest { class Device; class Window; }
 struct EyeInfo {
   Tempest::Matrix4x4 view;
@@ -14,16 +14,18 @@ struct EyeInfo {
   Tempest::Attachment depth; // optional depth buffer
 };
 
+#ifdef OPENXR_ENABLED
+#include <vulkan/vulkan.h>
+#include <openxr/openxr.h>
+
 struct XRQuadLayerDesc {
-  VkImage             image = VK_NULL_HANDLE;
-  VkFormat            format = VK_FORMAT_UNDEFINED;
-  VkImageLayout       layout = VK_IMAGE_LAYOUT_UNDEFINED;
-  int                 width  = 0;
-  int                 height = 0;
-  float               metersWidth = 1.f;
-  Tempest::Vec3       position{};
-  Tempest::Vec4       orientation{}; // quaternion x,y,z,w
+  VkImage  image = VK_NULL_HANDLE; // source color image
+  int      width = 0;              // pixels
+  int      height = 0;             // pixels
+  float    metersWidth = 1.f;      // physical width of quad
+  XrPosef  pose{};                 // center pose (quad faces -Z)
 };
+#endif
 class IXRBackend {
 public:
   virtual ~IXRBackend() = default;
@@ -32,7 +34,9 @@ public:
   virtual bool beginFrame() = 0;
   virtual void endFrame() = 0;
   virtual std::array<EyeInfo,2> views() const = 0; // returns default/empty at P1
-  virtual void setUiQuad(const XRQuadLayerDesc* desc) = 0;
+#ifdef OPENXR_ENABLED
+  virtual void setUiQuad(const XRQuadLayerDesc* q) = 0; // nullptr clears for this frame
+#endif
 
   virtual Tempest::Vec3 headPosition() const = 0;
   virtual Tempest::Vec4 headOrientation() const = 0;
