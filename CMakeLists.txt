@@ -14,12 +14,25 @@ set(CMAKE_SKIP_RPATH ON)
 add_executable(${PROJECT_NAME})
 
 option(OPENXR_ENABLED "Enable OpenXR support" OFF)
+
 if(OPENXR_ENABLED)
-  find_package(OpenXR REQUIRED)
-  target_sources(${PROJECT_NAME} PRIVATE src/xr/XR.cpp src/xr/OpenXRBackend.cpp)
-  target_link_libraries(${PROJECT_NAME} OpenXR::openxr_loader)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE OPENXR_ENABLED XR_USE_PLATFORM_WIN32 XR_USE_GRAPHICS_API_VULKAN)
+  find_package(OpenXR QUIET)
+  if(NOT OpenXR_FOUND)
+    message(FATAL_ERROR "OpenXR SDK not found. Install Khronos OpenXR-SDK (or set CMAKE_PREFIX_PATH) or configure with -DOPENXR_ENABLED=OFF.")
+  endif()
+
+  target_compile_definitions(${PROJECT_NAME} PRIVATE
+    OPENXR_ENABLED
+    XR_USE_PLATFORM_WIN32
+    XR_USE_GRAPHICS_API_VULKAN)
+
+  target_link_libraries(${PROJECT_NAME} PRIVATE OpenXR::openxr_loader)
+
   target_include_directories(${PROJECT_NAME} PRIVATE ${OpenXR_INCLUDE_DIRS})
+
+  target_sources(${PROJECT_NAME} PRIVATE
+    src/xr/XR.cpp
+    src/xr/OpenXRBackend.cpp)
 endif()
 
 if(MSVC)
