@@ -4,6 +4,8 @@
 #include <Tempest/Log>
 #include <Tempest/Device>
 #include <Tempest/Window>
+#include <gapi/vulkan/vdevice.h>
+#include <gapi/vulkan/vtexture.h>
 
 #include "../game/commandline.h"
 
@@ -510,11 +512,58 @@ void OpenXRBackend::endFrame() {
 
   XrCompositionLayerQuad quadLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
   if(uiQuad) {
+    if(uiLayer.swapchain==XR_NULL_HANDLE || uiLayer.width!=uint32_t(uiQuad->width) ||
+       uiLayer.height!=uint32_t(uiQuad->height) || uiLayer.format!=uiQuad->format) {
+      if(uiLayer.swapchain!=XR_NULL_HANDLE)
+        xrDestroySwapchain(uiLayer.swapchain);
+      XrSwapchainCreateInfo sci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+      sci.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+      sci.format     = uiQuad->format;
+      sci.sampleCount= 1;
+      sci.width      = uint32_t(uiQuad->width);
+      sci.height     = uint32_t(uiQuad->height);
+      sci.arraySize  = 1;
+      sci.mipCount   = 1;
+      xrCreateSwapchain(session,&sci,&uiLayer.swapchain);
+      uint32_t imgCount=0;
+      xrEnumerateSwapchainImages(uiLayer.swapchain,0,&imgCount,nullptr);
+      uiLayer.images.resize(imgCount,{XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
+      xrEnumerateSwapchainImages(uiLayer.swapchain,imgCount,&imgCount,
+                                 reinterpret_cast<XrSwapchainImageBaseHeader*>(uiLayer.images.data()));
+      uiLayer.width  = sci.width;
+      uiLayer.height = sci.height;
+      uiLayer.format = uiQuad->format;
+    }
+
+    XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+    xrAcquireSwapchainImage(uiLayer.swapchain,&ai,&uiLayer.acquired);
+    XrSwapchainImageWaitInfo wi2{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+    wi2.timeout = XR_INFINITE_DURATION;
+    xrWaitSwapchainImage(uiLayer.swapchain,&wi2);
+
+    Tempest::Attachment src(*device, uiQuad->image, uiQuad->width, uiQuad->height, toTexFormat(uiQuad->format));
+    VkImage dstImg = uiLayer.images[uiLayer.acquired].image;
+    Tempest::Attachment dst(*device, dstImg, uiQuad->width, uiQuad->height, toTexFormat(uiQuad->format));
+
+    struct DevAccess { Tempest::AbstractGraphicsApi& api; struct Impl { Tempest::AbstractGraphicsApi& api; Tempest::AbstractGraphicsApi::Device* dev; } impl; Tempest::AbstractGraphicsApi::Device* dev; };
+    auto& dx = *reinterpret_cast<Tempest::Detail::VDevice*>(reinterpret_cast<DevAccess*>(device)->dev);
+    auto cmd = dx.dataMgr().get();
+    cmd->begin(true);
+    auto& sTex = *reinterpret_cast<Tempest::Detail::VTexture*>(Tempest::textureCast<Tempest::Texture2d&>(src).impl.handler);
+    auto& dTex = *reinterpret_cast<Tempest::Detail::VTexture*>(Tempest::textureCast<Tempest::Texture2d&>(dst).impl.handler);
+    cmd->barrier(sTex, Tempest::ResourceAccess::ColorAttach, Tempest::ResourceAccess::TransferSrc, uint32_t(-1));
+    cmd->barrier(dTex, Tempest::ResourceAccess::None, Tempest::ResourceAccess::TransferDst, uint32_t(-1));
+    cmd->blit(sTex, uiQuad->width, uiQuad->height, 0, dTex, uiQuad->width, uiQuad->height, 0);
+    cmd->barrier(sTex, Tempest::ResourceAccess::TransferSrc, Tempest::ResourceAccess::Sampler, uint32_t(-1));
+    cmd->barrier(dTex, Tempest::ResourceAccess::TransferDst, Tempest::ResourceAccess::ColorAttach, uint32_t(-1));
+    cmd->end();
+    dx.dataMgr().submitAndWait(std::move(cmd));
+
     quadLayer.space = refSpace;
     quadLayer.pose.orientation = {uiQuad->orientation.x, uiQuad->orientation.y, uiQuad->orientation.z, uiQuad->orientation.w};
-    quadLayer.pose.position = {uiQuad->position.x, uiQuad->position.y, uiQuad->position.z};
+    quadLayer.pose.position    = {uiQuad->position.x, uiQuad->position.y, uiQuad->position.z};
     quadLayer.size = {uiQuad->metersWidth, uiQuad->metersWidth * float(uiQuad->height)/float(uiQuad->width)};
-    quadLayer.subImage.swapchain = XR_NULL_HANDLE;
+    quadLayer.subImage.swapchain = uiLayer.swapchain;
     quadLayer.subImage.imageRect.offset = {0,0};
     quadLayer.subImage.imageRect.extent = {uiQuad->width, uiQuad->height};
     layers[layerCount++] = reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quadLayer);
@@ -526,6 +575,10 @@ void OpenXRBackend::endFrame() {
   ei.layerCount = layerCount;
   ei.layers = layers;
   xrEndFrame(session,&ei);
+  if(uiQuad) {
+    XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+    xrReleaseSwapchainImage(uiLayer.swapchain,&ri);
+  }
   uiQuad = nullptr;
 }
 
@@ -537,6 +590,14 @@ std::array<EyeInfo,2> OpenXRBackend::views() const {
     ret[i].color = eyes[i].color;
   }
   return ret;
+}
+
+Tempest::Vec3 OpenXRBackend::headPosition() const {
+  return toVec3(headPose.position);
+}
+
+Tempest::Vec4 OpenXRBackend::headOrientation() const {
+  return Tempest::Vec4{headPose.orientation.x, headPose.orientation.y, headPose.orientation.z, headPose.orientation.w};
 }
 
 void OpenXRBackend::pollInput() {

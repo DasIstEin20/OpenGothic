@@ -43,12 +43,26 @@ class MenuRoot;
 class GameSession;
 class Interactive;
 
+#ifdef OPENXR_ENABLED
+struct HudImageInfo {
+  VkImage       image = VK_NULL_HANDLE;
+  int           w = 0;
+  int           h = 0;
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkFormat      format = VK_FORMAT_UNDEFINED;
+};
+#endif
+
 class MainWindow : public Tempest::Window {
   public:
     explicit MainWindow(Tempest::Device& device, IXRBackend* xr);
     ~MainWindow() override;
 
     float uiScale() const;
+
+#ifdef OPENXR_ENABLED
+    bool getVrHudImage(HudImageInfo& out) const;
+#endif
 
   private:
     void paintEvent     (Tempest::PaintEvent& event) override;
@@ -101,6 +115,9 @@ class MainWindow : public Tempest::Window {
     void     updateAnimation(uint64_t dt);
     void     tickCamera(uint64_t dt);
     void     isDialogClosed(bool& ret);
+#ifdef OPENXR_ENABLED
+    void     handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud);
+#endif
 
     template<Tempest::KeyEvent::KeyType k>
     void     onMarvinKey();
@@ -187,4 +204,11 @@ class MainWindow : public Tempest::Window {
 
     Tempest::Attachment vrHud;
     Tempest::ZBuffer    vrHudDepth;
+
+#ifdef OPENXR_ENABLED
+    Tempest::Vec3        hudPos{};
+    float                hudYaw = 0.f;
+    bool                 hudInitialized = false;
+    bool                 vrPointerPressed = false;
+#endif
   };
