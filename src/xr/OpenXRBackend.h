@@ -17,6 +17,9 @@ public:
   bool beginFrame() override;
   void endFrame() override;
   std::array<EyeInfo,2> views() const override;
+  void pollInput() override;
+  const XRInputState& inputState() const override { return input; }
+  void hapticPulse(float amplitude, float seconds) override;
 
 private:
   struct Eye {
@@ -51,5 +54,19 @@ private:
   bool          allowRoll    = false;
   bool          loggedFp     = false;
   XrFrameState  frameState{XR_TYPE_FRAME_STATE};
+
+  XrActionSet   actionSet   = XR_NULL_HANDLE;
+  XrAction      moveAction  = XR_NULL_HANDLE;
+  XrAction      turnAction  = XR_NULL_HANDLE;
+  XrAction      jumpAction  = XR_NULL_HANDLE;
+  XrAction      attackAction= XR_NULL_HANDLE;
+  XrAction      interactAction=XR_NULL_HANDLE;
+  XrAction      menuAction  = XR_NULL_HANDLE;
+  XrAction      teleportAction=XR_NULL_HANDLE;
+  XrAction      aimPoseAction=XR_NULL_HANDLE;
+  XrAction      hapticAction=XR_NULL_HANDLE;
+  XrSpace       aimSpace    = XR_NULL_HANDLE;
+  XrPath        handPath[2] = {XR_NULL_PATH,XR_NULL_PATH};
+  XRInputState  input{};
 };
 #endif
