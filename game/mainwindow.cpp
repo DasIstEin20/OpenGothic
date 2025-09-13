@@ -1370,14 +1370,12 @@ void MainWindow::render(){
           }
           Tempest::Vec4 hudQ = quatFromYawPitch(hudYaw, pitch);
           IXRBackend::XRQuadLayerDesc hud{};
-          hud.image = imgInfo.image;
-          hud.format = imgInfo.format;
-          hud.layout = imgInfo.layout;
-          hud.width  = imgInfo.w;
-          hud.height = imgInfo.h;
+          hud.image       = imgInfo.image;
+          hud.width       = imgInfo.w;
+          hud.height      = imgInfo.h;
           hud.metersWidth = hudMeters;
-          hud.position = hudPos;
-          hud.orientation = hudQ;
+          hud.pose.orientation = {hudQ.x, hudQ.y, hudQ.z, hudQ.w};
+          hud.pose.position    = {hudPos.x, hudPos.y, hudPos.z};
           handleVrPointer(hud);
           xrBackend_->setUiQuad(&hud);
           xrBackend_->endFrame();
@@ -1496,8 +1494,6 @@ bool MainWindow::getVrHudImage(HudImageInfo& out) const {
   out.image  = vkTex->impl;
   out.w      = tex.w();
   out.h      = tex.h();
-  out.format = vkTex->format;
-  out.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   return true;
 }
 #endif
@@ -1513,15 +1509,17 @@ void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
     }
     return;
   }
-  Tempest::Vec3 normal = rotate(hud.orientation, Tempest::Vec3{0.f,0.f,1.f});
+  Tempest::Vec4 q{hud.pose.orientation.x, hud.pose.orientation.y, hud.pose.orientation.z, hud.pose.orientation.w};
+  Tempest::Vec3 pos{hud.pose.position.x, hud.pose.position.y, hud.pose.position.z};
+  Tempest::Vec3 normal = rotate(q, Tempest::Vec3{0.f,0.f,1.f});
   float denom = Tempest::Vec3::dotProduct(st.aim.dir, normal);
   if(std::fabs(denom) < 1e-6f)
     return;
-  float t = Tempest::Vec3::dotProduct(hud.position - st.aim.pos, normal)/denom;
+  float t = Tempest::Vec3::dotProduct(pos - st.aim.pos, normal)/denom;
   if(t<=0.f)
     return;
   Tempest::Vec3 hit = st.aim.pos + st.aim.dir*t;
-  Tempest::Vec3 local = rotateInv(hud.orientation, hit - hud.position);
+  Tempest::Vec3 local = rotateInv(q, hit - pos);
   float widthM  = hud.metersWidth;
   float heightM = hud.metersWidth * float(hud.height)/float(hud.width);
   float u = local.x/widthM + 0.5f;

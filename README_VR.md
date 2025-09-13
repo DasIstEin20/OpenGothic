@@ -48,3 +48,4 @@ Available options:
 ### Laser pointer & Follow
 
 Aim with the right-hand controller; the trigger (interact) maps to a mouse click on the HUD quad. The quad position can be tuned via `--vr-hud-distance`, `--vr-hud-width`, `--vr-hud-scale`, `--vr-hud-pitch-deg`, `--vr-hud-follow` and `--vr-hud-res-scale`. When follow is enabled, the quad smoothly tethers to head movement with gentle smoothing.
+Recommended values for Quest 2: distance `1.4m`, width `1.0m`, pitch `-10°`, res-scale `1.0`.

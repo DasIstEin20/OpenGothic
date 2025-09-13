@@ -44,12 +44,11 @@ class GameSession;
 class Interactive;
 
 #ifdef OPENXR_ENABLED
+#include <vulkan/vulkan.h>
 struct HudImageInfo {
-  VkImage       image = VK_NULL_HANDLE;
-  int           w = 0;
-  int           h = 0;
-  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkFormat      format = VK_FORMAT_UNDEFINED;
+  VkImage image = VK_NULL_HANDLE;
+  int     w = 0;
+  int     h = 0;
 };
 #endif
 
