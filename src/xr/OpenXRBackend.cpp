@@ -73,6 +73,24 @@ static Tempest::Matrix4x4 toTempest(const XrMatrix4x4f& m) {
   return r;
 }
 
+static VkFormat pickFormat(const std::vector<int64_t>& formats) {
+  const VkFormat prefer[] = {
+    VK_FORMAT_R8G8B8A8_SRGB,
+    VK_FORMAT_R8G8B8A8_UNORM,
+    VK_FORMAT_B8G8R8A8_SRGB,
+    VK_FORMAT_B8G8R8A8_UNORM
+  };
+  for(VkFormat f:prefer)
+    if(std::find(formats.begin(),formats.end(),(int64_t)f)!=formats.end())
+      return f;
+  return formats.empty() ? VK_FORMAT_R8G8B8A8_UNORM : (VkFormat)formats[0];
+}
+
+static Tempest::TextureFormat toTexFormat(VkFormat f) {
+  (void)f;
+  return Tempest::TextureFormat::RGBA8;
+}
+
 }
 
 OpenXRBackend::OpenXRBackend() = default;
@@ -165,9 +183,8 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   xrEnumerateSwapchainFormats(session, 0, &formatCount, nullptr);
   std::vector<int64_t> formats(formatCount);
   xrEnumerateSwapchainFormats(session, formatCount, &formatCount, formats.data());
-  VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
-  if(std::find(formats.begin(),formats.end(),(int64_t)VK_FORMAT_R8G8B8A8_UNORM)==formats.end() && !formats.empty())
-    colorFormat = (VkFormat)formats[0];
+  VkFormat colorFormat = pickFormat(formats);
+  Tempest::Log::i("Swapchain format: ", int(colorFormat));
 
   for(uint32_t i=0;i<viewCount && i<eyes.size();++i) {
     eyes[i].width  = cfg[i].recommendedImageRectWidth;
@@ -194,9 +211,6 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
     xrEnumerateSwapchainImages(eyes[i].swapchain,0,&imgCount,nullptr);
     eyes[i].images.resize(imgCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
     xrEnumerateSwapchainImages(eyes[i].swapchain,imgCount,&imgCount,(XrSwapchainImageBaseHeader*)eyes[i].images.data());
-    eyes[i].attachments.resize(imgCount);
-    for(uint32_t k=0;k<imgCount;++k)
-      eyes[i].attachments[k] = Tempest::Attachment(dev, eyes[i].images[k].image, eyes[i].width, eyes[i].height, Tempest::TextureFormat::RGBA8);
 
     Tempest::Log::i("Eye ", i, ": ", eyes[i].width, "x", eyes[i].height, " format ", int(colorFormat));
   }
@@ -206,6 +220,7 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
 
 void OpenXRBackend::shutdown() {
   for(auto& e:eyes) {
+    e.color = {};
     if(e.swapchain!=XR_NULL_HANDLE)
       xrDestroySwapchain(e.swapchain);
     e.swapchain = XR_NULL_HANDLE;
@@ -256,6 +271,9 @@ bool OpenXRBackend::beginFrame() {
     XrSwapchainImageWaitInfo    wi2{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
     wi2.timeout = XR_INFINITE_DURATION;
     xrWaitSwapchainImage(eyes[i].swapchain,&wi2);
+
+    auto& img = eyes[i].images[eyes[i].acquired];
+    eyes[i].color = Tempest::Attachment(*device, img.image, eyes[i].width, eyes[i].height, toTexFormat(eyes[i].format));
   }
 
   return true;
@@ -275,6 +293,7 @@ void OpenXRBackend::endFrame() {
     pv[i].subImage.imageRect.offset = {0,0};
     pv[i].subImage.imageRect.extent = {(int32_t)eyes[i].width,(int32_t)eyes[i].height};
 
+    eyes[i].color = {};
     XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
     xrReleaseSwapchainImage(eyes[i].swapchain,&ri);
   }
@@ -301,8 +320,7 @@ std::array<EyeInfo,2> OpenXRBackend::views() const {
   for(size_t i=0;i<eyes.size();++i) {
     ret[i].view  = eyes[i].viewMat;
     ret[i].proj  = eyes[i].projMat;
-    if(eyes[i].acquired < eyes[i].attachments.size())
-      ret[i].color = eyes[i].attachments[eyes[i].acquired];
+    ret[i].color = eyes[i].color;
   }
   return ret;
 }

@@ -6,8 +6,8 @@ namespace Tempest { class Device; class Window; }
 struct EyeInfo {
   Tempest::Matrix4x4 view;
   Tempest::Matrix4x4 proj;
-  Tempest::Attachment color;
-  Tempest::Attachment depth;
+  Tempest::Attachment color; // wrapped external VkImage for this frame
+  Tempest::Attachment depth; // optional depth buffer
 };
 class IXRBackend {
 public:

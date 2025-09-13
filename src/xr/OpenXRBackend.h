@@ -20,16 +20,16 @@ public:
 
 private:
   struct Eye {
-    XrSwapchain                                swapchain = XR_NULL_HANDLE;
-    std::vector<XrSwapchainImageVulkan2KHR>    images;
-    std::vector<Tempest::Attachment>           attachments;
-    uint32_t                                   width  = 0;
-    uint32_t                                   height = 0;
-    VkFormat                                   format = VK_FORMAT_R8G8B8A8_UNORM;
-    uint32_t                                   acquired = 0;
-    XrView                                     view{XR_TYPE_VIEW};
-    Tempest::Matrix4x4                         viewMat;
-    Tempest::Matrix4x4                         projMat;
+    XrSwapchain                             swapchain = XR_NULL_HANDLE;
+    std::vector<XrSwapchainImageVulkan2KHR> images;
+    uint32_t                                width  = 0;
+    uint32_t                                height = 0;
+    VkFormat                                format = VK_FORMAT_R8G8B8A8_UNORM;
+    uint32_t                                acquired = 0;
+    XrView                                  view{XR_TYPE_VIEW};
+    Tempest::Matrix4x4                      viewMat;
+    Tempest::Matrix4x4                      projMat;
+    Tempest::Attachment                     color; // per-frame wrapped image
   };
 
   Tempest::Device* device = nullptr;
