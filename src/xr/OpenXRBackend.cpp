@@ -504,16 +504,29 @@ void OpenXRBackend::endFrame() {
   layer.viewCount = (uint32_t)pv.size();
   layer.views     = pv.data();
 
-  const XrCompositionLayerBaseHeader* layers[] = {
-    reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer)
-  };
+  const XrCompositionLayerBaseHeader* layers[2];
+  uint32_t layerCount = 0;
+  layers[layerCount++] = reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer);
+
+  XrCompositionLayerQuad quadLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
+  if(uiQuad) {
+    quadLayer.space = refSpace;
+    quadLayer.pose.orientation = {uiQuad->orientation.x, uiQuad->orientation.y, uiQuad->orientation.z, uiQuad->orientation.w};
+    quadLayer.pose.position = {uiQuad->position.x, uiQuad->position.y, uiQuad->position.z};
+    quadLayer.size = {uiQuad->metersWidth, uiQuad->metersWidth * float(uiQuad->height)/float(uiQuad->width)};
+    quadLayer.subImage.swapchain = XR_NULL_HANDLE;
+    quadLayer.subImage.imageRect.offset = {0,0};
+    quadLayer.subImage.imageRect.extent = {uiQuad->width, uiQuad->height};
+    layers[layerCount++] = reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quadLayer);
+  }
 
   XrFrameEndInfo ei{XR_TYPE_FRAME_END_INFO};
   ei.displayTime = frameState.predictedDisplayTime;
   ei.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-  ei.layerCount = 1;
+  ei.layerCount = layerCount;
   ei.layers = layers;
   xrEndFrame(session,&ei);
+  uiQuad = nullptr;
 }
 
 std::array<EyeInfo,2> OpenXRBackend::views() const {

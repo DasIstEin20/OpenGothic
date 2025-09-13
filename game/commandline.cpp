@@ -253,6 +253,62 @@ CommandLine::CommandLine(int argc, const char** argv) {
       } catch(...) {}
       vrVignette = std::clamp(vrVignette,0.f,1.f);
     }
+    else if(arg.rfind("--vr-hud-distance",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHudDist = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHudDist = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-hud-width",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHudWidth = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHudWidth = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-hud-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHudScale = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHudScale = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-hud-pitch-deg",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHudPitch = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHudPitch = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-hud-follow",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      if(!v.empty()) {
+        vrHudFollow = !(v=="off" || v=="0" || v=="false");
+      }
+    }
+    else if(arg.rfind("--vr-hud-res-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHudRes = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHudRes = std::stof(argv[++i]);
+      } catch(...) {}
+    }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
     }

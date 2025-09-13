@@ -9,6 +9,8 @@
 #include <Tempest/Application>
 #include <Tempest/Log>
 #include <Tempest/Matrix4x4>
+#include <Tempest/TextureFormat>
+#include <Tempest/Vec4>
 #include <cmath>
 #include <algorithm>
 #include <Tempest/Vec3>
@@ -1291,14 +1293,39 @@ void MainWindow::render(){
         uiMesh [cmdId].update(device,uiLayer);
         numMesh[cmdId].update(device,numOverlay);
 
+        int hudW = int(1920 * CommandLine::inst().vrHudResScale());
+        int hudH = int(1080 * CommandLine::inst().vrHudResScale());
+        if(vrHud.isEmpty() || vrHud.w()!=uint32_t(hudW) || vrHud.h()!=uint32_t(hudH)) {
+          vrHud = device.attachment(Tempest::TextureFormat::RGBA8, hudW, hudH);
+          vrHudDepth = device.zbuffer(Tempest::TextureFormat::Depth16, hudW, hudH);
+        }
+
         CommandBuffer& cmd = commands[cmdId];
         {
           auto enc = cmd.startEncoding(device);
           for(auto& eye:views) {
-            renderer.draw(eye.color, enc, cmdId, uiMesh[cmdId], numMesh[cmdId], inventory, video, eye.view, eye.proj);
+            renderer.draw(eye.color, enc, cmdId);
+          }
+          enc.setFramebuffer({{vrHud, Tempest::Discard, Tempest::Preserve}});
+          enc.setDebugMarker("VR-HUD");
+          uiMesh[cmdId].draw(enc);
+          if(inventory.isOpen()!=InventoryMenu::State::Closed) {
+            enc.setFramebuffer({{vrHud, Tempest::Preserve, Tempest::Preserve}},{vrHudDepth,1.f,Tempest::Preserve});
+            inventory.draw(enc);
+            enc.setFramebuffer({{vrHud, Tempest::Preserve, Tempest::Preserve}});
+            numMesh[cmdId].draw(enc);
           }
         }
         device.submit(cmd,sync);
+
+        IXRBackend::XRQuadLayerDesc hud{};
+        hud.image = vrHud;
+        hud.width = hudW;
+        hud.height= hudH;
+        hud.metersWidth = CommandLine::inst().vrHudWidth()*CommandLine::inst().vrHudScale();
+        hud.position = Tempest::Vec3{0.f,0.f,-CommandLine::inst().vrHudDistance()};
+        hud.orientation = Tempest::Vec4{0.f,0.f,0.f,1.f};
+        xrBackend_->setUiQuad(&hud);
         xrBackend_->endFrame();
         if(auto cam = Gothic::inst().camera())
           cam->clearExternalViewProj();

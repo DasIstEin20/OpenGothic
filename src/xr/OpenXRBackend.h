@@ -20,6 +20,7 @@ public:
   void pollInput() override;
   const XRInputState& inputState() const override { return input; }
   void hapticPulse(float amplitude, float seconds) override;
+  void setUiQuad(const XRQuadLayerDesc* desc) override { uiQuad = desc; }
 
 private:
   struct Eye {
@@ -68,5 +69,6 @@ private:
   XrSpace       aimSpace    = XR_NULL_HANDLE;
   XrPath        handPath[2] = {XR_NULL_PATH,XR_NULL_PATH};
   XRInputState  input{};
+  const XRQuadLayerDesc* uiQuad = nullptr;
 };
 #endif
