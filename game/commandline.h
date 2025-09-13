@@ -59,6 +59,13 @@ class CommandLine {
     int                 vrSnapCooldown()  const { return vrSnapCooldown;}
     float               vrMoveSpeedScale()const { return vrMoveScale;   }
     float               vrVignetteStrength() const { return vrVignette; }
+
+    float               vrHudDistance()   const { return vrHudDist;    }
+    float               vrHudWidth()      const { return vrHudWidth;   }
+    float               vrHudScale()      const { return vrHudScale;   }
+    float               vrHudPitchDeg()   const { return vrHudPitch;   }
+    bool                vrHudFollow()     const { return vrHudFollow;  }
+    float               vrHudResScale()   const { return vrHudRes;     }
     std::string_view    defaultSave()      const { return saveDef;    }
 
     std::string         wrldDef;
@@ -103,5 +110,11 @@ class CommandLine {
     int                 vrSnapCooldown= 250;
     float               vrMoveScale   = 1.f;
     float               vrVignette    = 0.f;
+    float               vrHudDist     = 1.4f;
+    float               vrHudWidth    = 1.0f;
+    float               vrHudScale    = 1.0f;
+    float               vrHudPitch    = -10.f;
+    bool                vrHudFollow   = true;
+    float               vrHudRes      = 1.0f;
   };
 

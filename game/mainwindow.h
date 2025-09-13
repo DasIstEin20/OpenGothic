@@ -184,4 +184,7 @@ class MainWindow : public Tempest::Window {
     uint64_t   vrSnapTime = 0;
     bool       vrTelePrev = false;
     bool       vrAttackPrev = false;
+
+    Tempest::Attachment vrHud;
+    Tempest::ZBuffer    vrHudDepth;
   };

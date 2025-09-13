@@ -32,3 +32,15 @@ Additional options:
 - `--vr-snap-cooldown-ms=<int>` – cooldown between snap turns (default `250`)
 - `--vr-move-speed-scale=<float>` – movement speed multiplier (default `1.0`)
 - `--vr-vignette-strength=<0..1>` – comfort vignette strength (default `0`)
+
+## HUD/UI in VR
+
+The 2D interface can be rendered onto a floating quad in front of the player.
+Available options:
+
+- `--vr-hud-distance=<meters>` – distance from the head to the HUD plane (default `1.4`)
+- `--vr-hud-width=<meters>` – physical width of the HUD quad (default `1.0`)
+- `--vr-hud-scale=<0.5..2.0>` – additional HUD scale factor (default `1.0`)
+- `--vr-hud-pitch-deg=<deg>` – pitch offset of the quad in degrees (default `-10`)
+- `--vr-hud-follow=on|off` – make the HUD follow the head (default `on`)
+- `--vr-hud-res-scale=<float>` – resolution scale for the offscreen HUD texture (default `1.0`)
