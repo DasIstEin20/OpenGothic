@@ -1170,10 +1170,49 @@ void MainWindow::render(){
     tickCamera(dt);
 
     if(xrBackend_!=nullptr) {
-      if(xrBackend_->beginFrame())
+      if(xrBackend_->beginFrame()) {
+        auto views = xrBackend_->views();
+
+        auto& sync = fence[cmdId];
+        if(!sync.wait(0)) {
+          std::this_thread::yield();
+          xrBackend_->endFrame();
+          return;
+        }
+        Resources::resetRecycled(cmdId);
+
+        if(video.isActive()) {
+          video.paint(device,cmdId);
+          uiLayer.clear();
+          PaintEvent p(uiLayer,atlas,this->w(),this->h());
+          video.paintEvent(p);
+        } else if(needToUpdate() || Gothic::inst().checkLoading()!=Gothic::LoadState::Idle) {
+          dispatchPaintEvent(uiLayer,atlas);
+
+          numOverlay.clear();
+          PaintEvent p(numOverlay,atlas,this->w(),this->h());
+          inventory.paintNumOverlay(p);
+        }
+        uiMesh [cmdId].update(device,uiLayer);
+        numMesh[cmdId].update(device,numOverlay);
+
+        CommandBuffer& cmd = commands[cmdId];
+        {
+          auto enc = cmd.startEncoding(device);
+          for(auto& eye:views) {
+            renderer.draw(eye.color, enc, cmdId, uiMesh[cmdId], numMesh[cmdId], inventory, video, eye.view, eye.proj);
+          }
+        }
+        device.submit(cmd,sync);
         xrBackend_->endFrame();
-      return;
+        cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
+        return;
+      } else {
+        xrBackend_->shutdown();
+        delete xrBackend_;
+        xrBackend_ = nullptr;
       }
+    }
 
     auto& sync = fence[cmdId];
     if(!sync.wait(0)) {

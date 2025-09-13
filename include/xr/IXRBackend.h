@@ -1,9 +1,13 @@
 #pragma once
 #include <array>
+#include <Tempest/Matrix4x4>
+#include <Tempest/Attachment>
 namespace Tempest { class Device; class Window; }
 struct EyeInfo {
-  // Placeholder for P2 (per-eye view/proj + Tempest attachments)
-  // For P1 leave empty; provide size() via views()
+  Tempest::Matrix4x4 view;
+  Tempest::Matrix4x4 proj;
+  Tempest::Attachment color;
+  Tempest::Attachment depth;
 };
 class IXRBackend {
 public:
