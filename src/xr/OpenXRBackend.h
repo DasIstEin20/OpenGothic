@@ -4,6 +4,8 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <array>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 class OpenXRBackend : public IXRBackend {
 public:
@@ -17,6 +19,26 @@ public:
   std::array<EyeInfo,2> views() const override;
 
 private:
+  struct Eye {
+    XrSwapchain                                swapchain = XR_NULL_HANDLE;
+    std::vector<XrSwapchainImageVulkan2KHR>    images;
+    std::vector<Tempest::Attachment>           attachments;
+    uint32_t                                   width  = 0;
+    uint32_t                                   height = 0;
+    VkFormat                                   format = VK_FORMAT_R8G8B8A8_UNORM;
+    uint32_t                                   acquired = 0;
+    XrView                                     view{XR_TYPE_VIEW};
+    Tempest::Matrix4x4                         viewMat;
+    Tempest::Matrix4x4                         projMat;
+  };
+
+  Tempest::Device* device = nullptr;
+
+  PFN_xrGetVulkanInstanceExtensionsKHR pfnGetInstanceExtensions = nullptr;
+  PFN_xrGetVulkanDeviceExtensionsKHR   pfnGetDeviceExtensions   = nullptr;
+
+  std::array<Eye,2> eyes;
+
   XrInstance    instance = XR_NULL_HANDLE;
   XrSystemId    systemId = XR_NULL_SYSTEM_ID;
   XrSession     session  = XR_NULL_HANDLE;
