@@ -8,6 +8,8 @@
 #include <Tempest/Layout>
 #include <Tempest/Application>
 #include <Tempest/Log>
+#include <Tempest/Matrix4x4>
+#include <cmath>
 
 #include "ui/dialogmenu.h"
 #include "ui/menuroot.h"
@@ -439,6 +441,20 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
     }
   uiKeyUp=nullptr;
 
+  if(xrBackend_!=nullptr) {
+    float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
+    if(event.key==Event::K_Q) {
+      vrSnapYaw -= step;
+      event.accept();
+      return;
+    }
+    if(event.key==Event::K_E) {
+      vrSnapYaw += step;
+      event.accept();
+      return;
+    }
+  }
+
   auto act = keycodec.tr(event);
   auto mapping = keycodec.mapping(event);
   player.onKeyPressed(act,event.key,mapping);
@@ -449,7 +465,7 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
     pm.save("dbg.png");
     }
   event.accept();
-  }
+}
 
 void MainWindow::keyRepeatEvent(KeyEvent& event) {
   if(uiKeyUp==&video){
@@ -478,7 +494,18 @@ void MainWindow::keyRepeatEvent(KeyEvent& event) {
     if(event.isAccepted())
       return;
     }
+  if(xrBackend_!=nullptr) {
+    float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
+    if(event.key==Event::K_Q) {
+      vrSnapYaw -= step;
+      event.accept();
+    }
+    if(event.key==Event::K_E) {
+      vrSnapYaw += step;
+      event.accept();
+    }
   }
+}
 
 void MainWindow::keyUpEvent(KeyEvent &event) {
   if(uiKeyUp==&video){
@@ -1172,6 +1199,16 @@ void MainWindow::render(){
     if(xrBackend_!=nullptr) {
       if(xrBackend_->beginFrame()) {
         auto views = xrBackend_->views();
+        if(vrSnapYaw!=0.f) {
+          Matrix4x4 rot;
+          rot.identity();
+          rot.rotateOY(vrSnapYaw);
+          for(auto& eye:views) {
+            Matrix4x4 m = rot;
+            m.mul(eye.view);
+            eye.view = m;
+          }
+        }
 
         if(auto cam = Gothic::inst().camera()) {
           if(CommandLine::inst().isVrFirstPerson())
@@ -1222,6 +1259,7 @@ void MainWindow::render(){
         xrBackend_->shutdown();
         delete xrBackend_;
         xrBackend_ = nullptr;
+        vrSnapYaw = 0.f;
       }
     }
 
