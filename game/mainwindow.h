@@ -180,4 +180,5 @@ class MainWindow : public Tempest::Window {
     Fps        fps;
     Benchmark  benchmark;
     uint64_t   maxFpsInv = 0;
+    float      vrSnapYaw = 0.f;
   };

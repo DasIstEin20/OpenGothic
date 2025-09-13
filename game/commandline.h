@@ -51,6 +51,7 @@ class CommandLine {
     bool                isVrFirstPerson() const { return vrFirstPerson; }
     float               vrHeightOffset()  const { return vrHeight;      }
     bool                vrAllowRoll()     const { return allowRoll;     }
+    int                 vrSnapAngle()     const { return vrSnap;        }
     std::string_view    defaultSave()      const { return saveDef;    }
 
     std::string         wrldDef;
@@ -87,5 +88,6 @@ class CommandLine {
     bool                vrFirstPerson = true;
     float               vrHeight      = 1.75f;
     bool                allowRoll     = false;
+    int                 vrSnap        = 30;
   };
 

@@ -173,7 +173,22 @@ CommandLine::CommandLine(int argc, const char** argv) {
         auto val = arg.substr(p+1);
         allowRoll = (val!="0" && val!="off");
       }
+    }
+    else if(arg.rfind("--vr-snap-deg",0)==0) {
+      int snap = 30;
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          snap = std::stoi(std::string(arg.substr(p+1)));
+        } else {
+          ++i;
+          if(i<argc)
+            snap = std::stoi(argv[i]);
+        }
+      } catch(...) {
       }
+      vrSnap = std::clamp(snap,5,90);
+    }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
       }
