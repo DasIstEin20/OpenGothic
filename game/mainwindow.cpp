@@ -1173,10 +1173,19 @@ void MainWindow::render(){
       if(xrBackend_->beginFrame()) {
         auto views = xrBackend_->views();
 
+        if(auto cam = Gothic::inst().camera()) {
+          if(CommandLine::inst().isVrFirstPerson())
+            cam->setExternalViewProj(&views[0].view,&views[0].proj);
+          else
+            cam->clearExternalViewProj();
+        }
+
         auto& sync = fence[cmdId];
         if(!sync.wait(0)) {
           std::this_thread::yield();
           xrBackend_->endFrame();
+          if(auto cam = Gothic::inst().camera())
+            cam->clearExternalViewProj();
           return;
         }
         Resources::resetRecycled(cmdId);
@@ -1205,6 +1214,8 @@ void MainWindow::render(){
         }
         device.submit(cmd,sync);
         xrBackend_->endFrame();
+        if(auto cam = Gothic::inst().camera())
+          cam->clearExternalViewProj();
         cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
         return;
       } else {

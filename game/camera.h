@@ -100,6 +100,9 @@ class Camera final {
 
     void               onRotateMouse(const Tempest::PointF& dpos);
 
+    void               setExternalViewProj(const Tempest::Matrix4x4* view, const Tempest::Matrix4x4* proj);
+    void               clearExternalViewProj();
+
     Tempest::Matrix4x4 projective() const;
     Tempest::Matrix4x4 view() const;
     Tempest::Matrix4x4 viewProj() const;
@@ -147,6 +150,9 @@ class Camera final {
     uint32_t              vpWidth=0;
     uint32_t              vpHeight=0;
     float                 depthNear = 0;
+
+    const Tempest::Matrix4x4* extView = nullptr;
+    const Tempest::Matrix4x4* extProj = nullptr;
 
     bool                  dbg           = false;
     bool                  tgEnable      = true;
