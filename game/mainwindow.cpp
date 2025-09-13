@@ -33,6 +33,34 @@
 #include "gothic.h"
 
 using namespace Tempest;
+#ifdef OPENXR_ENABLED
+#include <gapi/vulkan/vtexture.h>
+#include <cmath>
+namespace {
+static Tempest::Vec3 rotate(const Tempest::Vec4& q, const Tempest::Vec3& v) {
+  const float x = q.x, y = q.y, z = q.z, w = q.w;
+  return Tempest::Vec3{
+      (1.f-2.f*y*y-2.f*z*z)*v.x + 2.f*(x*y-w*z)*v.y + 2.f*(x*z+w*y)*v.z,
+      2.f*(x*y+w*z)*v.x + (1.f-2.f*x*x-2.f*z*z)*v.y + 2.f*(y*z-w*x)*v.z,
+      2.f*(x*z-w*y)*v.x + 2.f*(y*z+w*x)*v.y + (1.f-2.f*x*x-2.f*y*y)*v.z};
+}
+static Tempest::Vec3 rotateInv(const Tempest::Vec4& q, const Tempest::Vec3& v) {
+  return rotate(Tempest::Vec4{-q.x,-q.y,-q.z,q.w}, v);
+}
+static float quatYaw(const Tempest::Vec4& q) {
+  float siny_cosp = 2.f*(q.w*q.y + q.x*q.z);
+  float cosy_cosp = 1.f - 2.f*(q.y*q.y + q.z*q.z);
+  return std::atan2(siny_cosp, cosy_cosp);
+}
+static Tempest::Vec4 quatFromYawPitch(float yaw, float pitch) {
+  float cy = std::cos(yaw*0.5f);
+  float sy = std::sin(yaw*0.5f);
+  float cp = std::cos(pitch*0.5f);
+  float sp = std::sin(pitch*0.5f);
+  return Tempest::Vec4{sp*cy, sy*cp, -sy*sp, cy*cp};
+}
+}
+#endif
 
 MainWindow::MainWindow(Device& device, IXRBackend* xr)
   : Window(Maximized),device(device),xrBackend_(xr),swapchain(device,hwnd()),
@@ -1318,15 +1346,44 @@ void MainWindow::render(){
         }
         device.submit(cmd,sync);
 
-        IXRBackend::XRQuadLayerDesc hud{};
-        hud.image = vrHud;
-        hud.width = hudW;
-        hud.height= hudH;
-        hud.metersWidth = CommandLine::inst().vrHudWidth()*CommandLine::inst().vrHudScale();
-        hud.position = Tempest::Vec3{0.f,0.f,-CommandLine::inst().vrHudDistance()};
-        hud.orientation = Tempest::Vec4{0.f,0.f,0.f,1.f};
-        xrBackend_->setUiQuad(&hud);
-        xrBackend_->endFrame();
+        HudImageInfo imgInfo{};
+        if(getVrHudImage(imgInfo)) {
+          float hudScale = CommandLine::inst().vrHudScale();
+          float hudMeters = CommandLine::inst().vrHudWidth()*hudScale;
+          Tempest::Vec4 headQ = xrBackend_->headOrientation();
+          Tempest::Vec3 headPos = xrBackend_->headPosition();
+          float targetYaw = quatYaw(headQ);
+          float dist = CommandLine::inst().vrHudDistance();
+          float pitch = CommandLine::inst().vrHudPitchDeg()*float(M_PI)/180.f;
+          Tempest::Vec3 forward = rotate(quatFromYawPitch(targetYaw,0.f), Tempest::Vec3{0,0,-1});
+          Tempest::Vec3 targetPos = headPos + forward*dist;
+          if(!hudInitialized) {
+            hudPos = targetPos;
+            hudYaw = targetYaw;
+            hudInitialized = true;
+          } else if(CommandLine::inst().vrHudFollow()) {
+            hudPos += (targetPos-hudPos)*0.15f;
+            float dy = targetYaw - hudYaw;
+            if(dy>float(M_PI)) dy-=float(2*M_PI);
+            if(dy<-float(M_PI)) dy+=float(2*M_PI);
+            hudYaw += dy*0.15f;
+          }
+          Tempest::Vec4 hudQ = quatFromYawPitch(hudYaw, pitch);
+          IXRBackend::XRQuadLayerDesc hud{};
+          hud.image = imgInfo.image;
+          hud.format = imgInfo.format;
+          hud.layout = imgInfo.layout;
+          hud.width  = imgInfo.w;
+          hud.height = imgInfo.h;
+          hud.metersWidth = hudMeters;
+          hud.position = hudPos;
+          hud.orientation = hudQ;
+          handleVrPointer(hud);
+          xrBackend_->setUiQuad(&hud);
+          xrBackend_->endFrame();
+        } else {
+          xrBackend_->endFrame();
+        }
         if(auto cam = Gothic::inst().camera())
           cam->clearExternalViewProj();
         cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
@@ -1429,3 +1486,66 @@ void MainWindow::Benchmark::clear() {
   numFrames = 0;
   fpsSum = 0;
   }
+
+#ifdef OPENXR_ENABLED
+bool MainWindow::getVrHudImage(HudImageInfo& out) const {
+  if(vrHud.isEmpty())
+    return false;
+  auto& tex = textureCast<const Texture2d&>(vrHud);
+  auto* vkTex = reinterpret_cast<Tempest::Detail::VTexture*>(tex.impl.handler);
+  out.image  = vkTex->impl;
+  out.w      = tex.w();
+  out.h      = tex.h();
+  out.format = vkTex->format;
+  out.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  return true;
+}
+#endif
+
+#ifdef OPENXR_ENABLED
+void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
+  const auto& st = xrBackend_->inputState();
+  if(!st.aim.valid) {
+    if(vrPointerPressed && !st.interact) {
+      Tempest::MouseEvent mu(0,0,Tempest::MouseEvent::ButtonLeft);
+      mouseUpEvent(mu);
+      vrPointerPressed=false;
+    }
+    return;
+  }
+  Tempest::Vec3 normal = rotate(hud.orientation, Tempest::Vec3{0.f,0.f,1.f});
+  float denom = Tempest::Vec3::dotProduct(st.aim.dir, normal);
+  if(std::fabs(denom) < 1e-6f)
+    return;
+  float t = Tempest::Vec3::dotProduct(hud.position - st.aim.pos, normal)/denom;
+  if(t<=0.f)
+    return;
+  Tempest::Vec3 hit = st.aim.pos + st.aim.dir*t;
+  Tempest::Vec3 local = rotateInv(hud.orientation, hit - hud.position);
+  float widthM  = hud.metersWidth;
+  float heightM = hud.metersWidth * float(hud.height)/float(hud.width);
+  float u = local.x/widthM + 0.5f;
+  float v = -local.y/heightM + 0.5f;
+  if(u<0.f || u>1.f || v<0.f || v>1.f) {
+    if(vrPointerPressed) {
+      Tempest::MouseEvent mu(0,0,Tempest::MouseEvent::ButtonLeft);
+      mouseUpEvent(mu);
+      vrPointerPressed=false;
+    }
+    return;
+  }
+  int px = int(u*float(hud.width));
+  int py = int(v*float(hud.height));
+  Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonNone);
+  mouseMoveEvent(mv);
+  if(st.interact && !vrPointerPressed) {
+    Tempest::MouseEvent md(px,py,Tempest::MouseEvent::ButtonLeft);
+    mouseDownEvent(md);
+    vrPointerPressed=true;
+  } else if(!st.interact && vrPointerPressed) {
+    Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
+    mouseUpEvent(mu);
+    vrPointerPressed=false;
+  }
+}
+#endif

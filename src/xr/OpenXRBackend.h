@@ -21,6 +21,8 @@ public:
   const XRInputState& inputState() const override { return input; }
   void hapticPulse(float amplitude, float seconds) override;
   void setUiQuad(const XRQuadLayerDesc* desc) override { uiQuad = desc; }
+  Tempest::Vec3 headPosition() const override;
+  Tempest::Vec4 headOrientation() const override;
 
 private:
   struct Eye {
@@ -70,5 +72,14 @@ private:
   XrPath        handPath[2] = {XR_NULL_PATH,XR_NULL_PATH};
   XRInputState  input{};
   const XRQuadLayerDesc* uiQuad = nullptr;
+
+  struct UiLayer {
+    XrSwapchain                             swapchain = XR_NULL_HANDLE;
+    std::vector<XrSwapchainImageVulkan2KHR> images;
+    uint32_t                                width  = 0;
+    uint32_t                                height = 0;
+    VkFormat                                format = VK_FORMAT_UNDEFINED;
+    uint32_t                                acquired = 0;
+  } uiLayer;
 };
 #endif

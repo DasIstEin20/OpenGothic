@@ -44,3 +44,7 @@ Available options:
 - `--vr-hud-pitch-deg=<deg>` – pitch offset of the quad in degrees (default `-10`)
 - `--vr-hud-follow=on|off` – make the HUD follow the head (default `on`)
 - `--vr-hud-res-scale=<float>` – resolution scale for the offscreen HUD texture (default `1.0`)
+
+### Laser pointer & Follow
+
+Aim with the right-hand controller; the trigger (interact) maps to a mouse click on the HUD quad. The quad position can be tuned via `--vr-hud-distance`, `--vr-hud-width`, `--vr-hud-scale`, `--vr-hud-pitch-deg`, `--vr-hud-follow` and `--vr-hud-res-scale`. When follow is enabled, the quad smoothly tethers to head movement with gentle smoothing.

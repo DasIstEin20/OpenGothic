@@ -5,6 +5,7 @@
 #include <Tempest/Vec2>
 #include <Tempest/Vec3>
 #include <Tempest/Vec4>
+#include <vulkan/vulkan.h>
 namespace Tempest { class Device; class Window; }
 struct EyeInfo {
   Tempest::Matrix4x4 view;
@@ -14,8 +15,10 @@ struct EyeInfo {
 };
 
 struct XRQuadLayerDesc {
-  Tempest::Attachment image;
-  int                 width = 0;
+  VkImage             image = VK_NULL_HANDLE;
+  VkFormat            format = VK_FORMAT_UNDEFINED;
+  VkImageLayout       layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  int                 width  = 0;
   int                 height = 0;
   float               metersWidth = 1.f;
   Tempest::Vec3       position{};
@@ -30,6 +33,9 @@ public:
   virtual void endFrame() = 0;
   virtual std::array<EyeInfo,2> views() const = 0; // returns default/empty at P1
   virtual void setUiQuad(const XRQuadLayerDesc* desc) = 0;
+
+  virtual Tempest::Vec3 headPosition() const = 0;
+  virtual Tempest::Vec4 headOrientation() const = 0;
 
   struct XRInputState {
     struct Pose {
