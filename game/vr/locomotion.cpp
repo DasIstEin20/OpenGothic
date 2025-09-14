@@ -1,6 +1,7 @@
 #include "locomotion.h"
 #ifdef OPENXR_ENABLED
 #include <Tempest/Application>
+#include <Tempest/Log>
 #include <cmath>
 #include "../game/playercontrol.h"
 #include "../physics/vrchar.h"
@@ -55,12 +56,17 @@ void vr::VRLocomotion::tick(double dt, const IXRBackend::XRInputState& in) {
 
   if(teleReq) {
     Vec3 dst{};
-    if(nav.findWalkable(teleHint, dst, cmd.vrTeleportMaxSlope())) {
-      player.vrSetWorldPose(dst, player.getYaw());
-      teleportOk = true;
-      rejectReason = nullptr;
+    teleportOk = false;
+    if(nav.nearestWalkable(teleHint, dst, cmd.vrTeleportMaxSlope())) {
+      Vec3 out = dst;
+      if(nav.localReplan(player.worldPos(), dst, out, 1.5f)) {
+        player.vrSetWorldPose(out, player.yaw());
+        teleportOk = true;
+        rejectReason = nullptr;
+      } else {
+        rejectReason = "path";
+      }
     } else {
-      teleportOk = false;
       rejectReason = "nav";
     }
     teleReq = false;
@@ -68,7 +74,7 @@ void vr::VRLocomotion::tick(double dt, const IXRBackend::XRInputState& in) {
 
   Vec3 wish{in.move.x,0.f,in.move.y};
   if(wish.x!=0.f || wish.z!=0.f)
-    wish = rotateYaw(player.getYaw(), wish);
+    wish = rotateYaw(player.yaw(), wish);
 
   Vec3 wishVel = wish * cmd.vrWalkMaxSpeed();
   Vec3 dv = wishVel - velocity;
@@ -78,12 +84,36 @@ void vr::VRLocomotion::tick(double dt, const IXRBackend::XRInputState& in) {
     dv *= maxDv/len;
   velocity += dv;
 
-  Vec3 pos0 = player.getWorldPos();
-  vrChar.setTransform(pos0, player.getYaw());
-  Vec3 pos1 = vrChar.move(velocity*100.f, float(dt), grounded);
-  Vec3 dpos = pos1 - pos0;
+  Vec3 pos0 = player.worldPos();
+  VRCharConfig cfg{};
+  cfg.stepOffset    = cmd.vrWalkStep();
+  cfg.slopeLimitDeg = cmd.vrWalkSlope();
+  cfg.edgeStop      = cmd.vrWalkEdgeStop();
+  cfg.groundProbe   = cmd.vrWalkGroundProbe();
+  auto mv = vrChar.predictMove(pos0, player.yaw(), velocity*100.f, float(dt), cfg);
+
+  if(mv.nearLedge) {
+    velocity.x = 0.f;
+    velocity.z = 0.f;
+  }
+
+  Vec3 target = mv.proposedPos;
+  if(cmd.vrWalkReplan() && mv.hitObstacle) {
+    Vec3 out;
+    if(nav.localReplan(pos0, target, out, 1.5f))
+      target = out;
+  }
+  Vec3 dpos = target - pos0;
   if(dpos.x!=0.f || dpos.y!=0.f || dpos.z!=0.f)
     player.vrMoveDelta(dpos);
+  grounded = mv.onGround;
+  if(cmd.vrLog()==CommandLine::VrLog::Verbose && grounded!=wasGrounded) {
+    if(grounded)
+      Tempest::Log::d("vr: grounded");
+    else
+      Tempest::Log::d("vr: airborne");
+  }
+  wasGrounded = grounded;
 
   float yawDelta = 0.f;
   if(cmd.vrIsSmoothTurn()) {

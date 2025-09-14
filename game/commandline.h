@@ -87,8 +87,11 @@ class CommandLine {
     float              vrWalkAccel() const { return vrWalkAccelVal; }
     float              vrWalkMaxSpeed() const { return vrWalkMaxSpeedVal; }
     bool               vrKeepHeading() const { return vrKeepHeadingVal; }
-    float              vrUiScrollScale() const { return vrUiScrollScaleVal; }
     float              vrUiLongPress() const { return vrUiLongPressVal; }
+    float              vrWalkEdgeStop() const { return vrWalkEdgeStopVal; }
+    float              vrWalkGroundProbe() const { return vrWalkGroundProbeVal; }
+    bool               vrWalkReplan() const { return vrWalkReplanVal; }
+    float              vrUiScrollAccel() const { return vrUiScrollScaleVal; }
 
       // VR HUD parameters
       float               vrHudDistance()   const { return vrHudDist;    }
@@ -170,6 +173,9 @@ class CommandLine {
     float               vrWalkAccelVal = 10.f;
     float               vrWalkMaxSpeedVal = 3.f;
     bool                vrKeepHeadingVal = true;
+    float               vrWalkEdgeStopVal = 0.25f;
+    float               vrWalkGroundProbeVal = 1.f;
+    bool                vrWalkReplanVal = true;
     float               vrUiScrollScaleVal = 1.f;
     float               vrUiLongPressVal = 0.45f;
   };

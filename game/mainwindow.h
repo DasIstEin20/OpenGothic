@@ -12,6 +12,7 @@
 #include <Tempest/UniformBuffer>
 #include <Tempest/VectorImage>
 #include <Tempest/Event>
+#include <Tempest/Point>
 #include <Tempest/Pixmap>
 #include <Tempest/Sprite>
 #include <Tempest/Font>
@@ -119,6 +120,7 @@ class MainWindow : public Tempest::Window {
     void     isDialogClosed(bool& ret);
 #ifdef OPENXR_ENABLED
     void     handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud);
+    void     resetVrPointer();
 #endif
 
     template<Tempest::KeyEvent::KeyType k>
@@ -208,10 +210,13 @@ class MainWindow : public Tempest::Window {
     Tempest::Vec3        hudPos{};
     float                hudYaw = 0.f;
     bool                 hudInitialized = false;
-    bool                 vrPointerPressed = false;
-    uint64_t             vrPointerPressTime = 0;
-    int                  vrPointerX = 0;
-    int                  vrPointerY = 0;
+    struct LaserUIState {
+      bool  overHud = false;
+      bool  pressed = false;
+      bool  dragging = false;
+      double pressT = 0.0;
+      Tempest::Point lastPx{};
+    } laserUi;
     std::unique_ptr<VRCharacter> vrChar;
     std::unique_ptr<VRNav> vrNav;
     std::unique_ptr<vr::VRLocomotion> vrLoco;

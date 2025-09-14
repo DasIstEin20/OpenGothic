@@ -31,6 +31,7 @@ class VRLocomotion {
     bool            enabled = true;
     Tempest::Vec3   velocity{}; // m/s
     bool            grounded = false;
+    bool            wasGrounded = false;
 
     float           queuedSnap = 0.f; // degrees
     float           queuedSmooth = 0.f; // radians

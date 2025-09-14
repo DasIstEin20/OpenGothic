@@ -914,8 +914,15 @@ void MainWindow::onMarvinKey() {
 uint64_t MainWindow::tick() {
   uint64_t dt = 0;
   if(xrBackend_!=nullptr) {
+#ifdef OPENXR_ENABLED
+    if(!xrBackend_->isVisible()) {
+      resetVrPointer();
+      return 0;
+    }
+#else
     if(!xrBackend_->isVisible())
       return 0;
+#endif
     dt = uint64_t(xrBackend_->xrDeltaSeconds()*1000.0);
     if(dt==0)
       return 0;
@@ -1329,6 +1336,9 @@ void MainWindow::render(){
         if(!sync.wait(0)) {
           std::this_thread::yield();
           xrBackend_->endFrame();
+#ifdef OPENXR_ENABLED
+          resetVrPointer();
+#endif
           if(auto cam = Gothic::inst().camera())
             cam->clearExternalViewProj();
           return;
@@ -1362,6 +1372,7 @@ void MainWindow::render(){
           auto enc = cmd.startEncoding(device);
           for(auto& eye:views) {
             renderer.draw(eye.color, enc, cmdId);
+#ifdef OPENXR_ENABLED
             if(CommandLine::inst().vrShowHands() && xrBackend_->isVisible()) {
               Tempest::Matrix4x4 viewProj = eye.proj;
               viewProj.mul(eye.view);
@@ -1395,11 +1406,18 @@ void MainWindow::render(){
                   Tempest::Matrix4x4 qm;
                   qm.identity();
                   qm.translate(end.x,end.y,end.z);
-                  qm.scale(scale*0.05f);
-                  renderer.drawQuad(eye.color, enc, viewProj, qm, lclr);
+                  float rscale = scale*0.05f;
+                  if(laserUi.dragging)
+                    rscale *= 1.2f;
+                  qm.scale(rscale);
+                  Tempest::Vec3 rclr = lclr;
+                  if(laserUi.pressed)
+                    rclr = {1.f,1.f,0.f};
+                  renderer.drawQuad(eye.color, enc, viewProj, qm, rclr);
                 }
               }
             }
+#endif
           }
           enc.setFramebuffer({{vrHud, Tempest::Discard, Tempest::Preserve}});
           enc.setDebugMarker("VR-HUD");
@@ -1446,8 +1464,14 @@ void MainWindow::render(){
           handleVrPointer(hud);
           xrBackend_->setUiQuad(&hud);
           xrBackend_->endFrame();
+#ifdef OPENXR_ENABLED
+          resetVrPointer();
+#endif
         } else {
           xrBackend_->endFrame();
+#ifdef OPENXR_ENABLED
+          resetVrPointer();
+#endif
         }
         if(auto cam = Gothic::inst().camera())
           cam->clearExternalViewProj();
@@ -1568,15 +1592,22 @@ bool MainWindow::getVrHudImage(HudImageInfo& out) const {
 #endif
 
 #ifdef OPENXR_ENABLED
+void MainWindow::resetVrPointer() {
+  if(laserUi.pressed) {
+    Tempest::MouseEvent mu(laserUi.lastPx.x, laserUi.lastPx.y, Tempest::MouseEvent::ButtonLeft);
+    mouseUpEvent(mu);
+  }
+  laserUi = {};
+}
+
 void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
   const auto& st = xrBackend_->inputState();
   if(!st.aim.valid) {
-    if(vrPointerPressed && !st.interact) {
-      Tempest::MouseEvent mu(0,0,Tempest::MouseEvent::ButtonLeft);
+    if(laserUi.pressed) {
+      Tempest::MouseEvent mu(laserUi.lastPx.x, laserUi.lastPx.y, Tempest::MouseEvent::ButtonLeft);
       mouseUpEvent(mu);
-      vrPointerPressed=false;
     }
-    vrPointerPressTime = 0;
+    laserUi = {};
     return;
   }
   Tempest::Vec4 q{hud.pose.orientation.x, hud.pose.orientation.y, hud.pose.orientation.z, hud.pose.orientation.w};
@@ -1595,19 +1626,24 @@ void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
   float u = local.x/widthM + 0.5f;
   float v = -local.y/heightM + 0.5f;
   if(u<0.f || u>1.f || v<0.f || v>1.f) {
-    if(vrPointerPressed) {
-      Tempest::MouseEvent mu(0,0,Tempest::MouseEvent::ButtonLeft);
+    if(laserUi.pressed) {
+      Tempest::MouseEvent mu(laserUi.lastPx.x, laserUi.lastPx.y, Tempest::MouseEvent::ButtonLeft);
       mouseUpEvent(mu);
-      vrPointerPressed=false;
     }
+    laserUi = {};
     return;
   }
   int px = int(u*float(hud.width));
   int py = int(v*float(hud.height));
-  if(vrPointerPressed) {
+  Tempest::Point pxy{px,py};
+  laserUi.overHud = true;
+  if(laserUi.pressed) {
     Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonLeft);
     mouseMoveEvent(mv);
-    mouseDragEvent(mv);
+    if(laserUi.lastPx!=pxy) {
+      mouseDragEvent(mv);
+      laserUi.dragging = true;
+    }
   } else {
     Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonNone);
     mouseMoveEvent(mv);
@@ -1615,33 +1651,30 @@ void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
 
   auto w = Gothic::inst().world();
   uint64_t now = w ? w->tickCount() : 0;
-  if(st.interact && !vrPointerPressed) {
+  if(st.interact && !laserUi.pressed) {
     Tempest::MouseEvent md(px,py,Tempest::MouseEvent::ButtonLeft);
     mouseDownEvent(md);
-    vrPointerPressed=true;
-    vrPointerPressTime = now;
-  } else if(!st.interact && vrPointerPressed) {
-    if(vrPointerPressTime!=0 && now - vrPointerPressTime > uint64_t(CommandLine::inst().vrUiLongPress()*1000.f)) {
+    laserUi.pressed = true;
+    laserUi.pressT = double(now)/1000.0;
+  } else if(!st.interact && laserUi.pressed) {
+    double dt = double(now)/1000.0 - laserUi.pressT;
+    if(dt > CommandLine::inst().vrUiLongPress()) {
       Tempest::MouseEvent md(px,py,Tempest::MouseEvent::ButtonRight);
       mouseDownEvent(md);
       mouseUpEvent(md);
-      Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
-      mouseUpEvent(mu);
-    } else {
-      Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
-      mouseUpEvent(mu);
     }
-    vrPointerPressed=false;
-    vrPointerPressTime = 0;
+    Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
+    mouseUpEvent(mu);
+    laserUi.pressed = false;
+    laserUi.dragging = false;
   }
 
-  vrPointerX = px;
-  vrPointerY = py;
+  laserUi.lastPx = pxy;
 
   float scr = st.move.y;
   if(std::fabs(scr) > 0.1f) {
     Tempest::MouseEvent mw(px,py,Tempest::MouseEvent::ButtonNone);
-    mw.delta = int(scr * CommandLine::inst().vrUiScrollScale());
+    mw.delta = int(scr * CommandLine::inst().vrUiScrollAccel());
     mouseWheelEvent(mw);
   }
 }

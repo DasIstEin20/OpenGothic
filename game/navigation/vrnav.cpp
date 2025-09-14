@@ -8,7 +8,7 @@ VRNav::VRNav(World& w)
   : world(w) {
 }
 
-bool VRNav::findWalkable(const Tempest::Vec3& hint, Tempest::Vec3& out, float maxSlopeDeg) {
+bool VRNav::nearestWalkable(const Tempest::Vec3& hint, Tempest::Vec3& out, float maxSlopeDeg) {
   if(auto phys = world.physic()) {
     auto r = phys->landRay(hint, 5000.f);
     if(r.hasCol) {
@@ -22,9 +22,21 @@ bool VRNav::findWalkable(const Tempest::Vec3& hint, Tempest::Vec3& out, float ma
   return false;
 }
 
+bool VRNav::localReplan(const Tempest::Vec3& from, const Tempest::Vec3& to, Tempest::Vec3& out, float maxRadiusMeters) {
+  float maxDist = maxRadiusMeters*100.f;
+  Tempest::Vec3 diff = to - from;
+  diff.y = 0.f;
+  float len = std::sqrt(diff.x*diff.x + diff.z*diff.z);
+  if(len > maxDist)
+    return false;
+  if(nearestWalkable(to, out, 90.f))
+    return true;
+  return false;
+}
+
 bool VRNav::isWalkable(const Tempest::Vec3& pos, float maxSlopeDeg) {
   Tempest::Vec3 tmp{};
-  return findWalkable(pos, tmp, maxSlopeDeg);
+  return nearestWalkable(pos, tmp, maxSlopeDeg);
 }
 
 #endif

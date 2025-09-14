@@ -545,6 +545,35 @@ CommandLine::CommandLine(int argc, const char** argv) {
           vrWalkSlopeVal = std::stof(argv[++i]);
       } catch(...) {}
     }
+    else if(arg.rfind("--vr-walk-edge-stop",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkEdgeStopVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkEdgeStopVal = std::stof(argv[++i]);
+      } catch(...) {}
+      vrWalkEdgeStopVal = std::clamp(vrWalkEdgeStopVal,0.f,5.f);
+    }
+    else if(arg.rfind("--vr-walk-ground-probe",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkGroundProbeVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkGroundProbeVal = std::stof(argv[++i]);
+      } catch(...) {}
+      vrWalkGroundProbeVal = std::clamp(vrWalkGroundProbeVal,0.f,5.f);
+    }
+    else if(arg.rfind("--vr-walk-replan",0)==0) {
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto v = arg.substr(p+1);
+        vrWalkReplanVal = !(v=="off" || v=="0" || v=="false");
+      } else {
+        vrWalkReplanVal = true;
+      }
+    }
     else if(arg.rfind("--vr-walk-accel",0)==0) {
       auto p = arg.find('=');
       try {
@@ -572,7 +601,7 @@ CommandLine::CommandLine(int argc, const char** argv) {
         vrKeepHeadingVal = true;
       }
     }
-    else if(arg.rfind("--vr-ui-scroll-scale",0)==0) {
+    else if(arg.rfind("--vr-ui-scroll-accel",0)==0 || arg.rfind("--vr-ui-scroll-scale",0)==0) {
       auto p = arg.find('=');
       try {
         if(p!=std::string_view::npos)

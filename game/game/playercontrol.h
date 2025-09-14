@@ -57,6 +57,8 @@ class PlayerControl final {
     void  vrRotateYaw(float yawRad);
     Tempest::Vec3 getWorldPos() const;
     float getYaw() const;
+    Tempest::Vec3 worldPos() const { return getWorldPos(); }
+    float yaw() const { return getYaw(); }
     bool  isOnGround() const;
     void  setVrJump(bool v);
     void  setVrAttack(bool v);
