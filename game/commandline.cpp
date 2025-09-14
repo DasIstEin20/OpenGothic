@@ -396,6 +396,77 @@ CommandLine::CommandLine(int argc, const char** argv) {
           vrHudRes = std::stof(argv[++i]);
       } catch(...) {}
     }
+    else if(arg.rfind("--vr-show-hands",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      if(!v.empty())
+        vrShowHandsVal = !(v=="off" || v=="0" || v=="false");
+    }
+    else if(arg.rfind("--vr-hands-mode",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      if(v=="ghost")
+        vrHandsModeVal = VrHandsMode::Ghost;
+      else
+        vrHandsModeVal = VrHandsMode::Controller;
+    }
+    else if(arg.rfind("--vr-laser",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      if(!v.empty())
+        vrLaserVal = !(v=="off" || v=="0" || v=="false");
+    }
+    else if(arg.rfind("--vr-hand-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrHandScaleVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrHandScaleVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-hand-color-left",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      float vals[3] = {vrHandColorLeftVal.x, vrHandColorLeftVal.y, vrHandColorLeftVal.z};
+      for(int k=0;k<3 && !v.empty();++k) {
+        size_t s = v.find(',');
+        try { vals[k] = std::stof(v.substr(0,s)); } catch(...) {}
+        if(s==std::string::npos) v.clear(); else v = v.substr(s+1);
+      }
+      vrHandColorLeftVal = Tempest::Vec3{vals[0],vals[1],vals[2]};
+    }
+    else if(arg.rfind("--vr-hand-color-right",0)==0) {
+      auto p = arg.find('=');
+      std::string v;
+      if(p!=std::string_view::npos)
+        v = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        v = argv[++i];
+      float vals[3] = {vrHandColorRightVal.x, vrHandColorRightVal.y, vrHandColorRightVal.z};
+      for(int k=0;k<3 && !v.empty();++k) {
+        size_t s = v.find(',');
+        try { vals[k] = std::stof(v.substr(0,s)); } catch(...) {}
+        if(s==std::string::npos) v.clear(); else v = v.substr(s+1);
+      }
+      vrHandColorRightVal = Tempest::Vec3{vals[0],vals[1],vals[2]};
+    }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
     }

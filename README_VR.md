@@ -60,3 +60,18 @@ Vignette affects only the 3D world rendering, the HUD layer remains untouched. R
 
 Aim with the right-hand controller; the trigger (interact) maps to a mouse click on the HUD quad. The quad position can be tuned via `--vr-hud-distance`, `--vr-hud-width`, `--vr-hud-scale`, `--vr-hud-pitch-deg`, `--vr-hud-follow` and `--vr-hud-res-scale`. When follow is enabled, the quad smoothly tethers to head movement with gentle smoothing.
 Recommended values for Quest 2: distance `1.4m`, width `1.0m`, pitch `-10°`, res-scale `1.0`.
+
+## VR Hands/Controllers
+
+Simple unlit proxies for your controllers/hands can be rendered in front of the player.
+
+Flags:
+
+- `--vr-show-hands=on|off` – toggle rendering (default `on`)
+- `--vr-hands-mode=controller|ghost` – choose proxy style (default `controller`)
+- `--vr-laser=on|off` – draw laser from dominant hand aim pose (default `on`)
+- `--vr-hand-scale=<float>` – scale of the hand/controller models (default `1.0`)
+- `--vr-hand-color-left=<r,g,b>` – RGB color for left hand (default `0.2,0.7,1.0`)
+- `--vr-hand-color-right=<r,g,b>` – RGB color for right hand (default `1.0,0.5,0.2`)
+
+The dominant hand is selected with `--vr-dominant-hand`. Laser and reticle appear only when a valid aim pose is available.

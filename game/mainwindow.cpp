@@ -1292,6 +1292,8 @@ void MainWindow::render(){
     if(xrBackend_!=nullptr) {
       if(xrBackend_->beginFrame()) {
         auto views = xrBackend_->views();
+        auto leftHand  = xrBackend_->handState(IXRBackend::XRHand::Left);
+        auto rightHand = xrBackend_->handState(IXRBackend::XRHand::Right);
         if(vrSnapYaw!=0.f) {
           Matrix4x4 rot;
           rot.identity();
@@ -1347,6 +1349,44 @@ void MainWindow::render(){
           auto enc = cmd.startEncoding(device);
           for(auto& eye:views) {
             renderer.draw(eye.color, enc, cmdId);
+            if(CommandLine::inst().vrShowHands() && xrBackend_->isVisible()) {
+              Tempest::Matrix4x4 viewProj = eye.proj;
+              viewProj.mul(eye.view);
+              float scale = CommandLine::inst().vrHandScale();
+
+              auto drawHand = [&](const IXRBackend::XRHandState& st, const Tempest::Vec3& clr) {
+                if(!st.isActive || !st.validGrip)
+                  return;
+                Tempest::Matrix4x4 m = st.gripPose;
+                m.scale(scale);
+                renderer.drawBox(eye.color, enc, viewProj, m, clr);
+              };
+
+              drawHand(leftHand,  CommandLine::inst().vrHandColorLeft());
+              drawHand(rightHand, CommandLine::inst().vrHandColorRight());
+
+              if(CommandLine::inst().vrLaser()) {
+                auto dom = CommandLine::inst().vrDominantHand();
+                const auto& hs = (dom==CommandLine::VrHand::Left ? leftHand : rightHand);
+                Tempest::Vec3 lclr = (dom==CommandLine::VrHand::Left ? CommandLine::inst().vrHandColorLeft() : CommandLine::inst().vrHandColorRight());
+                if(hs.isActive && hs.validAim) {
+                  float x=0,y=0,z=0,w=1;
+                  hs.aimPose.project(x,y,z,w);
+                  Tempest::Vec3 origin{x/w,y/w,z/w};
+                  x=0; y=0; z=-1; w=1;
+                  hs.aimPose.project(x,y,z,w);
+                  Tempest::Vec3 fwd{x/w,y/w,z/w};
+                  Tempest::Vec3 dir = fwd - origin;
+                  Tempest::Vec3 end = origin + dir*10.f;
+                  renderer.drawLine(eye.color, enc, viewProj, origin, end, lclr);
+                  Tempest::Matrix4x4 qm;
+                  qm.identity();
+                  qm.translate(end.x,end.y,end.z);
+                  qm.scale(scale*0.05f);
+                  renderer.drawQuad(eye.color, enc, viewProj, qm, lclr);
+                }
+              }
+            }
           }
           enc.setFramebuffer({{vrHud, Tempest::Discard, Tempest::Preserve}});
           enc.setDebugMarker("VR-HUD");
