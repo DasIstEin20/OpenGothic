@@ -198,6 +198,11 @@ class Renderer final {
       bool                      fisrtFrame = false;
       } gi;
 
+#ifdef OPENXR_ENABLED
+    Tempest::RenderPipeline    vrVignettePso;
+    float                      vrVignetteInner = 1.f;
+#endif
+
     struct {
       Tempest::StorageBuffer    epipoles;
       Tempest::StorageImage     epTrace;

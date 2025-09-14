@@ -475,6 +475,11 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
 
   if(xrBackend_!=nullptr) {
     float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
+    if(event.key==CommandLine::inst().vrRecenterKey()) {
+      xrBackend_->recenter();
+      event.accept();
+      return;
+    }
     if(event.key==Event::K_Q) {
       vrSnapYaw -= step;
       event.accept();
@@ -903,12 +908,21 @@ void MainWindow::onMarvinKey() {
   }
 
 uint64_t MainWindow::tick() {
-  auto time = Application::tickCount();
-  auto dt   = time-lastTick;
-  // NOTE: limit to ~200 FPS in game logic to avoid math issues
-  if(dt<5)
-    return 0;
-  lastTick  = time;
+  uint64_t dt = 0;
+  if(xrBackend_!=nullptr) {
+    if(!xrBackend_->isVisible())
+      return 0;
+    dt = uint64_t(xrBackend_->xrDeltaSeconds()*1000.0);
+    if(dt==0)
+      return 0;
+    lastTick = Application::tickCount();
+  } else {
+    auto time = Application::tickCount();
+    dt = time-lastTick;
+    if(dt<5)
+      return 0;
+    lastTick = time;
+  }
 
   auto st = Gothic::inst().checkLoading();
   if(st==Gothic::LoadState::Finalize || st==Gothic::LoadState::FailedLoad || st==Gothic::LoadState::FailedSave) {
@@ -1387,10 +1401,13 @@ void MainWindow::render(){
         cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
         return;
       } else {
-        xrBackend_->shutdown();
-        delete xrBackend_;
-        xrBackend_ = nullptr;
-        vrSnapYaw = 0.f;
+        if(!xrBackend_->isRunning()) {
+          xrBackend_->shutdown();
+          delete xrBackend_;
+          xrBackend_ = nullptr;
+          vrSnapYaw = 0.f;
+        }
+        return;
       }
     }
 

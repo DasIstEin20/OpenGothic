@@ -38,6 +38,11 @@ public:
   virtual void setUiQuad(const XRQuadLayerDesc* q) = 0; // nullptr clears for this frame
 #endif
 
+  virtual bool   isVisible() const = 0;
+  virtual bool   isRunning() const = 0;
+  virtual double xrDeltaSeconds() const = 0;
+  virtual void   recenter() = 0;
+
   virtual Tempest::Vec3 headPosition() const = 0;
   virtual Tempest::Vec4 headOrientation() const = 0;
 

@@ -13,6 +13,8 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <thread>
+#include <chrono>
 
 namespace {
 
@@ -159,6 +161,106 @@ OpenXRBackend::~OpenXRBackend() {
   shutdown();
 }
 
+bool OpenXRBackend::createSwapchains() {
+  for(auto& e:eyes) {
+    if(e.swapchain!=XR_NULL_HANDLE) {
+      xrDestroySwapchain(e.swapchain);
+      e.swapchain = XR_NULL_HANDLE;
+      e.images.clear();
+    }
+    e.width  = uint32_t(float(e.baseWidth )*renderScale);
+    e.height = uint32_t(float(e.baseHeight)*renderScale);
+
+    XrSwapchainCreateInfo sc{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+    sc.usageFlags  = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
+    sc.format      = e.format;
+    sc.sampleCount = e.sampleCount;
+    sc.width       = e.width;
+    sc.height      = e.height;
+    sc.faceCount   = 1;
+    sc.arraySize   = 1;
+    sc.mipCount    = 1;
+
+    if(xrCreateSwapchain(session,&sc,&e.swapchain)!=XR_SUCCESS)
+      return false;
+
+    uint32_t imgCount = 0;
+    xrEnumerateSwapchainImages(e.swapchain,0,&imgCount,nullptr);
+    e.images.resize(imgCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
+    xrEnumerateSwapchainImages(e.swapchain,imgCount,&imgCount,(XrSwapchainImageBaseHeader*)e.images.data());
+
+    if(logLevel!=LogLevel::Off)
+      Tempest::Log::i("Eye ", int(&e-&eyes[0]), ": ", e.width, "x", e.height);
+  }
+  return true;
+}
+
+void OpenXRBackend::destroySwapchains() {
+  for(auto& e:eyes) {
+    e.color = {};
+    if(e.swapchain!=XR_NULL_HANDLE)
+      xrDestroySwapchain(e.swapchain);
+    e.swapchain = XR_NULL_HANDLE;
+    e.images.clear();
+  }
+}
+
+void OpenXRBackend::pollEvents() {
+  XrEventDataBuffer ev{XR_TYPE_EVENT_DATA_BUFFER};
+  while(xrPollEvent(instance, &ev)==XR_SUCCESS) {
+    if(ev.type==XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
+      auto& ssc = *reinterpret_cast<XrEventDataSessionStateChanged*>(&ev);
+      switch(ssc.state) {
+        case XR_SESSION_STATE_READY: {
+          XrSessionBeginInfo bi{XR_TYPE_SESSION_BEGIN_INFO};
+          bi.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+          xrBeginSession(session,&bi);
+          state = SessionState::Ready;
+          running = true;
+          break;
+        }
+        case XR_SESSION_STATE_SYNCHRONIZED:
+          state = SessionState::Synchronized;
+          visible = false;
+          running = true;
+          break;
+        case XR_SESSION_STATE_VISIBLE:
+          state = SessionState::Visible;
+          visible = true;
+          running = true;
+          break;
+        case XR_SESSION_STATE_FOCUSED:
+          state = SessionState::Focused;
+          visible = true;
+          running = true;
+          break;
+        case XR_SESSION_STATE_STOPPING:
+          xrEndSession(session);
+          state = SessionState::Stopping;
+          visible = false;
+          running = false;
+          break;
+        case XR_SESSION_STATE_EXITING:
+        case XR_SESSION_STATE_LOSS_PENDING:
+          state = SessionState::Exiting;
+          visible = false;
+          running = false;
+          break;
+        case XR_SESSION_STATE_IDLE:
+          state = SessionState::Idle;
+          visible = false;
+          running = false;
+          break;
+        default:
+          break;
+      }
+      if(logLevel==LogLevel::Verbose)
+        Tempest::Log::d("XR state ", int(ssc.state));
+    }
+    ev = {XR_TYPE_EVENT_DATA_BUFFER};
+  }
+}
+
 bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   (void)win;
   device = &dev;
@@ -166,7 +268,13 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   auto& cmd = CommandLine::inst();
   firstPerson  = cmd.isVrFirstPerson();
   heightOffset = cmd.vrHeightOffset();
-  allowRoll    = cmd.vrAllowRoll();
+  if(cmd.vrSeated())
+    heightOffset -= 0.5f;
+  allowRoll     = cmd.vrAllowRoll();
+  dominantHand  = (cmd.vrDominantHand()==CommandLine::VrHand::Left ? 0u : 1u);
+  renderScale   = cmd.vrRenderScale();
+  logLevel      = cmd.vrLog();
+  turnDeadzone  = cmd.vrTurnDeadzone();
 
   uint32_t extCount = 0;
   xrEnumerateInstanceExtensionProperties(nullptr, 0, &extCount, nullptr);
@@ -193,6 +301,12 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   XrInstanceProperties ip{XR_TYPE_INSTANCE_PROPERTIES};
   if(xrGetInstanceProperties(instance,&ip)==XR_SUCCESS)
     Tempest::Log::i("OpenXR runtime: ", ip.runtimeName);
+
+  if(logLevel!=LogLevel::Off) {
+    Tempest::Log::i("VR render scale: ", renderScale);
+    Tempest::Log::i("VR vignette strength: ", cmd.vrVignetteStrength());
+    Tempest::Log::i("VR dominant hand: ", dominantHand==1?"right":"left");
+  }
 
   xrGetInstanceProcAddr(instance,"xrGetVulkanInstanceExtensionsKHR", (PFN_xrVoidFunction*)&pfnGetInstanceExtensions);
   xrGetInstanceProcAddr(instance,"xrGetVulkanDeviceExtensionsKHR",   (PFN_xrVoidFunction*)&pfnGetDeviceExtensions);
@@ -277,8 +391,8 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   makeAction(interactAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "interact", "Interact");
   makeAction(menuAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "menu", "Menu");
   makeAction(teleportAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "teleport_click", "Teleport");
-  makeAction(aimPoseAction, XR_ACTION_TYPE_POSE_INPUT, "aim_pose", "Aim Pose", &handPath[1],1);
-  makeAction(hapticAction, XR_ACTION_TYPE_VIBRATION_OUTPUT, "haptic", "Haptic", &handPath[1],1);
+  makeAction(aimPoseAction, XR_ACTION_TYPE_POSE_INPUT, "aim_pose", "Aim Pose", handPath.data(),uint32_t(handPath.size()));
+  makeAction(hapticAction, XR_ACTION_TYPE_VIBRATION_OUTPUT, "haptic", "Haptic", handPath.data(),uint32_t(handPath.size()));
 
   auto path = [&](const char* s) { return stringToPath(instance,s); };
   std::vector<XrActionSuggestedBinding> oculus = {
@@ -290,7 +404,9 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
     {attackAction,    path("/user/hand/right/input/trigger/click")},
     {teleportAction,  path("/user/hand/left/input/trigger/click")},
     {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
-    {hapticAction,    path("/user/hand/right/output/haptic")}
+    {aimPoseAction,   path("/user/hand/left/input/aim/pose")},
+    {hapticAction,    path("/user/hand/right/output/haptic")},
+    {hapticAction,    path("/user/hand/left/output/haptic")}
   };
   XrInteractionProfileSuggestedBinding suggested{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
   suggested.interactionProfile = path("/interaction_profiles/oculus/touch_controller");
@@ -309,7 +425,9 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
       {attackAction,    path("/user/hand/right/input/trigger/click")},
       {teleportAction,  path("/user/hand/left/input/trigger/click")},
       {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
-      {hapticAction,    path("/user/hand/right/output/haptic")}
+      {aimPoseAction,   path("/user/hand/left/input/aim/pose")},
+      {hapticAction,    path("/user/hand/right/output/haptic")},
+      {hapticAction,    path("/user/hand/left/output/haptic")}
     };
     XrInteractionProfileSuggestedBinding sb{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
     sb.interactionProfile = wmrProfile;
@@ -323,11 +441,13 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   attach.actionSets      = &actionSet;
   xrAttachSessionActionSets(session,&attach);
 
-  XrActionSpaceCreateInfo asci2{XR_TYPE_ACTION_SPACE_CREATE_INFO};
-  asci2.action = aimPoseAction;
-  asci2.subactionPath = handPath[1];
-  asci2.poseInActionSpace.orientation.w = 1.f;
-  xrCreateActionSpace(session,&asci2,&aimSpace);
+  for(size_t i=0;i<2;++i) {
+    XrActionSpaceCreateInfo asci2{XR_TYPE_ACTION_SPACE_CREATE_INFO};
+    asci2.action = aimPoseAction;
+    asci2.subactionPath = handPath[i];
+    asci2.poseInActionSpace.orientation.w = 1.f;
+    xrCreateActionSpace(session,&asci2,&aimSpace[i]);
+  }
 
   Tempest::Log::i("View configuration: PRIMARY_STEREO");
 
@@ -345,54 +465,33 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   Tempest::Log::i("Swapchain format: ", int(colorFormat));
 
   for(uint32_t i=0;i<viewCount && i<eyes.size();++i) {
-    eyes[i].width  = cfg[i].recommendedImageRectWidth;
-    eyes[i].height = cfg[i].recommendedImageRectHeight;
-    eyes[i].format = colorFormat;
+    eyes[i].baseWidth   = cfg[i].recommendedImageRectWidth;
+    eyes[i].baseHeight  = cfg[i].recommendedImageRectHeight;
+    eyes[i].sampleCount = cfg[i].recommendedSwapchainSampleCount;
+    eyes[i].format      = colorFormat;
+  }
 
-    XrSwapchainCreateInfo sc{XR_TYPE_SWAPCHAIN_CREATE_INFO};
-    sc.usageFlags   = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
-    sc.format       = colorFormat;
-    sc.sampleCount  = cfg[i].recommendedSwapchainSampleCount;
-    sc.width        = eyes[i].width;
-    sc.height       = eyes[i].height;
-    sc.faceCount    = 1;
-    sc.arraySize    = 1;
-    sc.mipCount     = 1;
-
-    if(xrCreateSwapchain(session,&sc,&eyes[i].swapchain)!=XR_SUCCESS) {
-      Tempest::Log::e("xrCreateSwapchain failed");
-      shutdown();
-      return false;
-    }
-
-    uint32_t imgCount = 0;
-    xrEnumerateSwapchainImages(eyes[i].swapchain,0,&imgCount,nullptr);
-    eyes[i].images.resize(imgCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
-    xrEnumerateSwapchainImages(eyes[i].swapchain,imgCount,&imgCount,(XrSwapchainImageBaseHeader*)eyes[i].images.data());
-
-    Tempest::Log::i("Eye ", i, ": ", eyes[i].width, "x", eyes[i].height, " format ", int(colorFormat));
+  if(!createSwapchains()) {
+    shutdown();
+    return false;
   }
 
   return true;
 }
 
 void OpenXRBackend::shutdown() {
-  for(auto& e:eyes) {
-    e.color = {};
-    if(e.swapchain!=XR_NULL_HANDLE)
-      xrDestroySwapchain(e.swapchain);
-    e.swapchain = XR_NULL_HANDLE;
-  }
+  destroySwapchains();
   if(uiSwapchain!=XR_NULL_HANDLE) {
     xrDestroySwapchain(uiSwapchain);
     uiSwapchain = XR_NULL_HANDLE;
   }
   uiImages.clear();
   haveUi = false;
-  if(aimSpace!=XR_NULL_HANDLE) {
-    xrDestroySpace(aimSpace);
-    aimSpace = XR_NULL_HANDLE;
-  }
+  for(auto& sp:aimSpace)
+    if(sp!=XR_NULL_HANDLE) {
+      xrDestroySpace(sp);
+      sp = XR_NULL_HANDLE;
+    }
   if(actionSet!=XR_NULL_HANDLE) {
     xrDestroyActionSet(actionSet);
     actionSet = XR_NULL_HANDLE;
@@ -419,12 +518,28 @@ bool OpenXRBackend::beginFrame() {
   if(session==XR_NULL_HANDLE)
     return false;
 
+  pollEvents();
+  if(!running || !visible) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    return false;
+  }
+
   XrFrameWaitInfo wi{XR_TYPE_FRAME_WAIT_INFO};
   if(xrWaitFrame(session,&wi,&frameState)!=XR_SUCCESS)
     return false;
   XrFrameBeginInfo bi{XR_TYPE_FRAME_BEGIN_INFO};
   if(xrBeginFrame(session,&bi)!=XR_SUCCESS)
     return false;
+
+  if(lastPredicted!=0) {
+    dt = double(frameState.predictedDisplayTime - lastPredicted) / 1e9;
+    dt = std::clamp(dt, 1.0/144.0, 1.0/30.0);
+    if(!loggedFps && logLevel!=LogLevel::Off) {
+      Tempest::Log::i("XR refresh rate: ", int(std::round(1.0/dt)), " Hz");
+      loggedFps = true;
+    }
+  }
+  lastPredicted = frameState.predictedDisplayTime;
 
   XrSpaceLocation headLoc{XR_TYPE_SPACE_LOCATION};
   if(xrLocateSpace(headSpace, refSpace, frameState.predictedDisplayTime, &headLoc)==XR_SUCCESS) {
@@ -625,6 +740,20 @@ void OpenXRBackend::pollInput() {
   if(xrSyncActions(session,&sync)!=XR_SUCCESS)
     return;
 
+  if(!profileQueried) {
+    XrInteractionProfileState prof{XR_TYPE_INTERACTION_PROFILE_STATE};
+    if(xrGetCurrentInteractionProfile(session, handPath[dominantHand], &prof)==XR_SUCCESS && prof.interactionProfile!=XR_NULL_PATH) {
+      char path[XR_MAX_PATH_LENGTH] = {};
+      uint32_t sz = 0;
+      xrPathToString(instance, prof.interactionProfile, XR_MAX_PATH_LENGTH, &sz, path);
+      if(std::strstr(path, "simple_controller")!=nullptr)
+        simpleController = true;
+    }
+    profileQueried = true;
+    if(simpleController && turnDeadzone<=0.25f)
+      turnDeadzone = 0.3f;
+  }
+
   XrActionStateGetInfo gi{XR_TYPE_ACTION_STATE_GET_INFO};
   XrActionStateVector2f v2{XR_TYPE_ACTION_STATE_VECTOR2F};
   gi.action = moveAction;
@@ -638,7 +767,10 @@ void OpenXRBackend::pollInput() {
   xrGetActionStateVector2f(session,&gi,&v2);
   if(v2.isActive) {
     input.haveControllers = true;
-    input.turnX = v2.currentState.x;
+    float x = v2.currentState.x;
+    if(std::fabs(x) < turnDeadzone)
+      x = 0.f;
+    input.turnX = x;
   }
 
   XrActionStateBoolean b{XR_TYPE_ACTION_STATE_BOOLEAN};
@@ -662,16 +794,23 @@ void OpenXRBackend::pollInput() {
   xrGetActionStateBoolean(session,&gi,&b);
   input.teleportClick = b.currentState;
 
-  if(aimSpace!=XR_NULL_HANDLE) {
+  size_t handIdx = dominantHand;
+  for(int attempt=0; attempt<2; ++attempt) {
+    if(aimSpace[handIdx]==XR_NULL_HANDLE) {
+      handIdx = 1 - handIdx;
+      continue;
+    }
     XrSpaceLocation loc{XR_TYPE_SPACE_LOCATION};
-    if(xrLocateSpace(aimSpace, refSpace, frameState.predictedDisplayTime, &loc)==XR_SUCCESS) {
+    if(xrLocateSpace(aimSpace[handIdx], refSpace, frameState.predictedDisplayTime, &loc)==XR_SUCCESS) {
       const XrSpaceLocationFlags req = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
       if((loc.locationFlags & req)==req) {
         input.aim.valid = true;
         input.aim.pos   = toVec3(loc.pose.position);
         input.aim.dir   = rotate(loc.pose.orientation, Tempest::Vec3{0,0,-1});
+        break;
       }
     }
+    handIdx = 1 - handIdx;
   }
 }
 
@@ -684,8 +823,31 @@ void OpenXRBackend::hapticPulse(float amplitude, float seconds) {
   vib.frequency = XR_FREQUENCY_UNSPECIFIED;
   XrHapticActionInfo hi{XR_TYPE_HAPTIC_ACTION_INFO};
   hi.action = hapticAction;
-  hi.subactionPath = handPath[1];
+  hi.subactionPath = handPath[dominantHand];
   xrApplyHapticFeedback(session,&hi,(XrHapticBaseHeader*)&vib);
+}
+
+bool OpenXRBackend::isVisible() const {
+  return visible;
+}
+
+bool OpenXRBackend::isRunning() const {
+  return running;
+}
+
+void OpenXRBackend::recenter() {
+  if(session==XR_NULL_HANDLE)
+    return;
+  XrPosef p{};
+  p.orientation.w = 1.f;
+  xrResetReferenceSpace(session, XR_REFERENCE_SPACE_TYPE_LOCAL, &p);
+}
+
+void OpenXRBackend::setRenderScale(float s) {
+  if(s<=0.f || std::fabs(s-renderScale)<1e-3f)
+    return;
+  renderScale = s;
+  createSwapchains();
 }
 
 #endif
