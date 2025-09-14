@@ -40,6 +40,8 @@ Additional options:
 - `--vr-teleport-max-slope=<deg>` – reject teleport to steep surfaces (default `45`)
 - `--vr-walk-step=<meters>` – step offset for collision (default `0.30`)
 - `--vr-walk-slope=<deg>` – maximum walkable slope (default `45`)
+- `--vr-walk-accel=<m/s^2>` – walk acceleration (default `10`)
+- `--vr-walk-maxspeed=<m/s>` – walk speed clamp (default `3`)
 - `--vr-keep-heading=on|off` – keep controller yaw on teleport (default `on`)
 - `--vr-ui-scroll-scale=<float>` – scroll wheel scale for HUD laser (default `1.0`)
 - `--vr-ui-longpress=<sec>` – hold duration for context click (default `0.45`)
@@ -94,3 +96,11 @@ Squeeze a controller to grab nearby objects tagged for VR (name prefix `vr_picku
 Held objects follow the controller grip and can be dropped or thrown by releasing the squeeze.
 Teleport rays snap to the first walkable surface when `--vr-teleport-grounded=on`.
 Too-steep or invalid targets are rejected with a brief haptic tick.
+
+## Locomotion internals
+
+All movement is routed through the original Gothic character controller via the `VRLocomotion` module. The left stick builds a
+desired velocity which is limited by `--vr-walk-accel` (default `10 m/s²`) and `--vr-walk-maxspeed` (default `3 m/s`). The
+`VRCharacter` adapter performs collision checks and passes the corrected motion to the game physics. Teleports are validated by
+`VRNav` before warping the player. Turning supports both snap and smooth modes and is applied through the player controller so
+non-VR behaviour is preserved.

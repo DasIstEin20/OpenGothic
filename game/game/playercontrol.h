@@ -51,8 +51,13 @@ class PlayerControl final {
     bool  tickMove(uint64_t dt);
     bool  tickCameraMove(uint64_t dt);
 
-    void  setVrMove(float strafe, float forward);
-    void  setVrTurn(float turn);
+    // VR hooks
+    void  vrSetWorldPose(const Tempest::Vec3& pos, float yawRad);
+    void  vrMoveDelta(const Tempest::Vec3& delta);
+    void  vrRotateYaw(float yawRad);
+    Tempest::Vec3 getWorldPos() const;
+    float getYaw() const;
+    bool  isOnGround() const;
     void  setVrJump(bool v);
     void  setVrAttack(bool v);
     void  setVrInteract(bool v);
@@ -230,7 +235,6 @@ class PlayerControl final {
     auto handleMovementAction(KeyCodec::ActionMapping actionMapping, bool pressed) -> void;
 #ifdef OPENXR_ENABLED
     std::unique_ptr<VRGrabber> vrGrab;
-    std::unique_ptr<VRCharacter> vrChar;
     std::array<Tempest::Vec3,2> vrHandPos{};
     std::array<Tempest::Vec3,2> vrHandVel{};
     std::array<bool,2>          vrHandHasPrev{{false,false}};
