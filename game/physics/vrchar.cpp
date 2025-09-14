@@ -5,6 +5,7 @@
 #include "../world/objects/npc.h"
 #include "../commandline.h"
 #include "dynamicworld.h"
+#include <algorithm>
 
 VRCharacter::VRCharacter(World& w)
   : world(w) {
@@ -14,32 +15,34 @@ VRCharacter::VRCharacter(World& w)
 
 void VRCharacter::setTransform(const Tempest::Vec3& pos, float /*yaw*/) {
   npc = world.player();
-  if(npc)
-    npc->setPosition(pos);
+  this->pos = pos;
+  this->yaw = 0.f;
   lastGround = pos.y;
 }
 
 Tempest::Vec3 VRCharacter::move(const Tempest::Vec3& v, float dt, bool& grounded) {
   grounded = false;
   if(npc==nullptr)
-    return {};
+    return pos;
 
-  Tempest::Vec3 dp = v*dt;
-  npc->tryMove(dp);
-  Tempest::Vec3 pos = npc->position();
+  Tempest::Vec3 to = pos + v*dt;
+  DynamicWorld::CollisionTest out;
+  auto& item = npc->physic;
+  bool ok = item.testMove(to, out);
+  Tempest::Vec3 np = ok ? to : out.partial;
   if(auto phys = world.physic()) {
-    auto r = phys->landRay(pos, stepOffset*2.f);
+    auto r = phys->landRay(np, stepOffset*2.f);
     if(r.hasCol) {
       float slope = std::acos(std::clamp(r.n.y,-1.f,1.f))*180.f/float(M_PI);
       if(slope<=slopeLimitDeg) {
-        pos.y = r.v.y;
-        npc->setPosition(pos);
+        np.y = r.v.y;
         grounded = true;
-        lastGround = pos.y;
+        lastGround = np.y;
       }
     }
   }
-  return npc->position();
+  pos = np;
+  return pos;
 }
 
 float VRCharacter::raycastDown(const Tempest::Vec3& pos, float maxDist, Tempest::Vec3& normal) {

@@ -22,4 +22,9 @@ bool VRNav::findWalkable(const Tempest::Vec3& hint, Tempest::Vec3& out, float ma
   return false;
 }
 
+bool VRNav::isWalkable(const Tempest::Vec3& pos, float maxSlopeDeg) {
+  Tempest::Vec3 tmp{};
+  return findWalkable(pos, tmp, maxSlopeDeg);
+}
+
 #endif

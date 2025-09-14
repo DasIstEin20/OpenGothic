@@ -545,6 +545,24 @@ CommandLine::CommandLine(int argc, const char** argv) {
           vrWalkSlopeVal = std::stof(argv[++i]);
       } catch(...) {}
     }
+    else if(arg.rfind("--vr-walk-accel",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkAccelVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkAccelVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-walk-maxspeed",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkMaxSpeedVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkMaxSpeedVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
     else if(arg.rfind("--vr-keep-heading",0)==0) {
       auto p = arg.find('=');
       if(p!=std::string_view::npos) {

@@ -17,6 +17,8 @@ class VRCharacter {
   private:
     World&  world;
     Npc*    npc = nullptr;
+    Tempest::Vec3 pos{};
+    float   yaw = 0.f;
     float   stepOffset = 30.f;
     float   slopeLimitDeg = 45.f;
     float   lastGround = 0.f;

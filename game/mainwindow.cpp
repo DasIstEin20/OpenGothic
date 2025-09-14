@@ -481,12 +481,14 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
       return;
     }
     if(event.key==Event::K_Q) {
-      vrSnapYaw -= step;
+      if(vrLoco) vrLoco->setSnapTurn(-CommandLine::inst().vrSnapAngle());
+      else player.vrRotateYaw(-step);
       event.accept();
       return;
     }
     if(event.key==Event::K_E) {
-      vrSnapYaw += step;
+      if(vrLoco) vrLoco->setSnapTurn(CommandLine::inst().vrSnapAngle());
+      else player.vrRotateYaw(step);
       event.accept();
       return;
     }
@@ -534,11 +536,13 @@ void MainWindow::keyRepeatEvent(KeyEvent& event) {
   if(xrBackend_!=nullptr) {
     float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
     if(event.key==Event::K_Q) {
-      vrSnapYaw -= step;
+      if(vrLoco) vrLoco->setSnapTurn(-CommandLine::inst().vrSnapAngle());
+      else player.vrRotateYaw(-step);
       event.accept();
     }
     if(event.key==Event::K_E) {
-      vrSnapYaw += step;
+      if(vrLoco) vrLoco->setSnapTurn(CommandLine::inst().vrSnapAngle());
+      else player.vrRotateYaw(step);
       event.accept();
     }
   }
@@ -973,62 +977,14 @@ uint64_t MainWindow::tick() {
   if(xrBackend_!=nullptr) {
     xrBackend_->pollInput();
     const auto& xr = xrBackend_->inputState();
-    player.setVrMove(xr.move.x*CommandLine::inst().vrMoveSpeedScale(),
-                     xr.move.y*CommandLine::inst().vrMoveSpeedScale());
-    player.setVrTurn(xr.turnX);
-    player.setVrJump(xr.jump);
-    player.setVrAttack(xr.attack);
-    player.setVrInteract(xr.interact);
-    player.setVrMenu(xr.menu);
-
+    if(vrLoco)
+      vrLoco->tick(double(dt)/1000.0, xr);
     if(xr.attack && !vrAttackPrev && CommandLine::inst().vrHaptics()) {
       auto dom = CommandLine::inst().vrDominantHand();
       IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
       xrBackend_->hapticPulse(h,0.5f,0.05f);
     }
     vrAttackPrev = xr.attack;
-
-    if(CommandLine::inst().vrIsSmoothTurn()) {
-      vrSnapYaw += xr.turnX * CommandLine::inst().vrTurnSpeed() * (float(dt)/1000.f) * float(M_PI/180.0);
-    } else {
-      float dz = CommandLine::inst().vrTurnDeadzone();
-      if(std::fabs(xr.turnX) > dz) {
-        uint64_t now = Tempest::Application::tickCount();
-        if(now - vrSnapTime > uint64_t(CommandLine::inst().vrSnapCooldown())) {
-          float step = CommandLine::inst().vrSnapAngle()*float(M_PI/180.f);
-          vrSnapYaw += (xr.turnX>0.f?1.f:-1.f)*step;
-          vrSnapTime = now;
-        }
-      }
-    }
-
-    if(CommandLine::inst().vrTeleport() && xr.teleportClick && !vrTelePrev && xr.aim.valid) {
-      auto w = Gothic::inst().world();
-      auto pl = w ? w->player() : nullptr;
-      if(pl!=nullptr) {
-        if(!vrNav)
-          vrNav = std::make_unique<VRNav>(*w);
-        Tempest::Vec3 dst;
-        bool ok = vrNav->findWalkable(xr.aim.pos + xr.aim.dir*500.f, dst, CommandLine::inst().vrTeleportMaxSlope());
-        if(ok) {
-          if(CommandLine::inst().vrKeepHeading()) {
-            float yaw = std::atan2(xr.aim.dir.x, xr.aim.dir.z)*180.f/float(M_PI);
-            pl->setDirection(yaw);
-          }
-          pl->setPosition(dst);
-          if(CommandLine::inst().vrHaptics()) {
-            auto dom = CommandLine::inst().vrDominantHand();
-            IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
-            xrBackend_->hapticPulse(h,0.5f,0.05f);
-          }
-        } else if(CommandLine::inst().vrHaptics()) {
-          auto dom = CommandLine::inst().vrDominantHand();
-          IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
-          xrBackend_->hapticPulse(h,0.15f,0.03f);
-        }
-      }
-    }
-    vrTelePrev = xr.teleportClick;
   }
 
   if(dialogs.isActive())
@@ -1240,6 +1196,19 @@ void MainWindow::onWorldLoaded() {
     pl->multSpeed(1.f);
   lastTick = Application::tickCount();
   player.clearFocus();
+#ifdef OPENXR_ENABLED
+  if(CommandLine::inst().isVr()) {
+    if(auto w = Gothic::inst().world()) {
+      vrChar = std::make_unique<VRCharacter>(*w);
+      vrNav  = std::make_unique<VRNav>(*w);
+      vrLoco = std::make_unique<vr::VRLocomotion>(player, *vrChar, *vrNav, CommandLine::inst());
+    }
+  } else {
+    vrLoco.reset();
+    vrChar.reset();
+    vrNav.reset();
+  }
+#endif
   }
 
 void MainWindow::onSessionExit() {
@@ -1349,17 +1318,6 @@ void MainWindow::render(){
           }
         }
 #endif
-        if(vrSnapYaw!=0.f) {
-          Matrix4x4 rot;
-          rot.identity();
-          rot.rotateOY(vrSnapYaw);
-          for(auto& eye:views) {
-            Matrix4x4 m = rot;
-            m.mul(eye.view);
-            eye.view = m;
-          }
-        }
-
         if(auto cam = Gothic::inst().camera()) {
           if(CommandLine::inst().isVrFirstPerson())
             cam->setExternalViewProj(&views[0].view,&views[0].proj);
@@ -1500,7 +1458,6 @@ void MainWindow::render(){
           xrBackend_->shutdown();
           delete xrBackend_;
           xrBackend_ = nullptr;
-          vrSnapYaw = 0.f;
         }
         return;
       }

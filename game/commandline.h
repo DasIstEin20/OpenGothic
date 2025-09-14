@@ -84,6 +84,8 @@ class CommandLine {
     bool               vrHaptics() const { return vrHapticsVal; }
     float              vrWalkStep() const { return vrWalkStepVal; }
     float              vrWalkSlope() const { return vrWalkSlopeVal; }
+    float              vrWalkAccel() const { return vrWalkAccelVal; }
+    float              vrWalkMaxSpeed() const { return vrWalkMaxSpeedVal; }
     bool               vrKeepHeading() const { return vrKeepHeadingVal; }
     float              vrUiScrollScale() const { return vrUiScrollScaleVal; }
     float              vrUiLongPress() const { return vrUiLongPressVal; }
@@ -165,6 +167,8 @@ class CommandLine {
     bool                vrHapticsVal = true;
     float               vrWalkStepVal = 0.3f;
     float               vrWalkSlopeVal = 45.f;
+    float               vrWalkAccelVal = 10.f;
+    float               vrWalkMaxSpeedVal = 3.f;
     bool                vrKeepHeadingVal = true;
     float               vrUiScrollScaleVal = 1.f;
     float               vrUiLongPressVal = 0.45f;

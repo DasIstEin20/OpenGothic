@@ -539,13 +539,47 @@ bool PlayerControl::tickCameraMove(uint64_t dt) {
   return true;
   }
 
-void PlayerControl::setVrMove(float strafe, float forward) {
-  movement.strafeRightLeft.analog = std::clamp(strafe,-1.f,1.f);
-  movement.forwardBackward.analog = std::clamp(forward,-1.f,1.f);
+Tempest::Vec3 PlayerControl::getWorldPos() const {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  return pl ? pl->position() : Tempest::Vec3{};
 }
 
-void PlayerControl::setVrTurn(float turn) {
-  movement.turnRightLeft.analog = std::clamp(turn,-1.f,1.f);
+float PlayerControl::getYaw() const {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  return pl ? pl->rotationRad() : 0.f;
+}
+
+bool PlayerControl::isOnGround() const {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  return pl ? !pl->isInAir() : true;
+}
+
+void PlayerControl::vrSetWorldPose(const Tempest::Vec3& pos, float yawRad) {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  if(pl) {
+    pl->setPosition(pos);
+    pl->setDirection(yawRad*180.f/float(M_PI));
+  }
+}
+
+void PlayerControl::vrMoveDelta(const Tempest::Vec3& delta) {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  if(pl)
+    pl->tryMove(delta);
+}
+
+void PlayerControl::vrRotateYaw(float yawRad) {
+  auto w = Gothic::inst().world();
+  auto pl = w ? w->player() : nullptr;
+  if(pl) {
+    float yaw = pl->rotation() + yawRad*180.f/float(M_PI);
+    pl->setDirection(yaw);
+  }
 }
 
 void PlayerControl::setVrButton(KeyCodec::Action a, bool v) {
@@ -673,23 +707,6 @@ void PlayerControl::implMove(uint64_t dt) {
   if(bs==BS_UNCONSCIOUS)
     return;
 
-#ifdef OPENXR_ENABLED
-  if(CommandLine::inst().isVr()) {
-    if(!vrChar)
-      vrChar = std::make_unique<VRCharacter>(*w);
-    vrChar->setTransform(pl.position(), rot);
-    float forward = movement.forwardBackward.value();
-    float strafe  = movement.strafeRightLeft.value();
-    Tempest::Vec3 dir{strafe,0.f,forward};
-    float yaw = pl.rotationRad();
-    Tempest::Vec3 v;
-    v.x = dir.x*std::cos(yaw) - dir.z*std::sin(yaw);
-    v.z = dir.x*std::sin(yaw) + dir.z*std::cos(yaw);
-    bool grounded=false;
-    vrChar->move(v*200.f,float(dt)/1000.f,grounded);
-    return;
-  }
-#endif
   if(!pl.isAiQueueEmpty()) {
     runAngleDest = 0;
     return;
