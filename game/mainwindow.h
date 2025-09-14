@@ -209,5 +209,6 @@ class MainWindow : public Tempest::Window {
     float                hudYaw = 0.f;
     bool                 hudInitialized = false;
     bool                 vrPointerPressed = false;
+    bool                 vrSqueezePrev[2] = {false,false};
 #endif
   };

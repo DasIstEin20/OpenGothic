@@ -467,6 +467,74 @@ CommandLine::CommandLine(int argc, const char** argv) {
       }
       vrHandColorRightVal = Tempest::Vec3{vals[0],vals[1],vals[2]};
     }
+    else if(arg.rfind("--vr-grab-distance",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          vrGrabDist = std::stof(std::string(arg.substr(p+1)));
+        } else if(i+1<argc) {
+          vrGrabDist = std::stof(argv[++i]);
+        }
+      } catch(...) {}
+      vrGrabDist = std::clamp(vrGrabDist,0.f,10.f);
+    }
+    else if(arg.rfind("--vr-grab-radius",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          vrGrabRadiusVal = std::stof(std::string(arg.substr(p+1)));
+        } else if(i+1<argc) {
+          vrGrabRadiusVal = std::stof(argv[++i]);
+        }
+      } catch(...) {}
+      vrGrabRadiusVal = std::clamp(vrGrabRadiusVal,0.f,1.f);
+    }
+    else if(arg.rfind("--vr-throw-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          vrThrowScaleVal = std::stof(std::string(arg.substr(p+1)));
+        } else if(i+1<argc) {
+          vrThrowScaleVal = std::stof(argv[++i]);
+        }
+      } catch(...) {}
+      vrThrowScaleVal = std::clamp(vrThrowScaleVal,0.f,10.f);
+    }
+    else if(arg.rfind("--vr-grab",0)==0) {
+      vrGrabVal = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrGrabVal = (val!="0" && val!="off");
+      }
+    }
+    else if(arg.rfind("--vr-teleport-grounded",0)==0) {
+      vrTeleGround = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrTeleGround = (val!="0" && val!="off");
+      }
+    }
+    else if(arg.rfind("--vr-teleport-max-slope",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos) {
+          vrTeleMaxSlope = std::stof(std::string(arg.substr(p+1)));
+        } else if(i+1<argc) {
+          vrTeleMaxSlope = std::stof(argv[++i]);
+        }
+      } catch(...) {}
+      vrTeleMaxSlope = std::clamp(vrTeleMaxSlope,0.f,90.f);
+    }
+    else if(arg.rfind("--vr-haptics",0)==0) {
+      vrHapticsVal = true;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrHapticsVal = (val!="0" && val!="off");
+      }
+    }
     else {
       Log::i("unreacognized commandline option: \"", arg, "\"");
     }

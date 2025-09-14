@@ -19,7 +19,7 @@ public:
   std::array<EyeInfo,2> views() const override;
   void pollInput() override;
   const XRInputState& inputState() const override { return input; }
-  void hapticPulse(float amplitude, float seconds) override;
+  void hapticPulse(XRHand hand, float amplitude, float seconds) override;
   void setUiQuad(const XRQuadLayerDesc* q) override;
   Tempest::Vec3 headPosition() const override;
   Tempest::Vec4 headOrientation() const override;

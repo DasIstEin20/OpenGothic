@@ -78,5 +78,8 @@ public:
 
   virtual void pollInput() = 0;
   virtual const XRInputState& inputState() const = 0;
-  virtual void hapticPulse(float amplitude, float seconds) = 0;
+  virtual void hapticPulse(XRHand hand, float amplitude, float seconds) = 0;
+  void hapticPulse(float amplitude, float seconds) {
+    hapticPulse(XRHand::Right, amplitude, seconds);
+  }
 };

@@ -899,7 +899,7 @@ void OpenXRBackend::pollInput() {
   }
 }
 
-void OpenXRBackend::hapticPulse(float amplitude, float seconds) {
+void OpenXRBackend::hapticPulse(XRHand hand, float amplitude, float seconds) {
   if(session==XR_NULL_HANDLE || hapticAction==XR_NULL_HANDLE)
     return;
   XrHapticVibration vib{XR_TYPE_HAPTIC_VIBRATION};
@@ -908,7 +908,7 @@ void OpenXRBackend::hapticPulse(float amplitude, float seconds) {
   vib.frequency = XR_FREQUENCY_UNSPECIFIED;
   XrHapticActionInfo hi{XR_TYPE_HAPTIC_ACTION_INFO};
   hi.action = hapticAction;
-  hi.subactionPath = handPath[dominantHand];
+  hi.subactionPath = handPath[size_t(hand)];
   xrApplyHapticFeedback(session,&hi,(XrHapticBaseHeader*)&vib);
 }
 
