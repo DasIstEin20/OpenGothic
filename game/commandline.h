@@ -82,6 +82,11 @@ class CommandLine {
     bool               vrTeleportGrounded() const { return vrTeleGround; }
     float              vrTeleportMaxSlope() const { return vrTeleMaxSlope; }
     bool               vrHaptics() const { return vrHapticsVal; }
+    float              vrWalkStep() const { return vrWalkStepVal; }
+    float              vrWalkSlope() const { return vrWalkSlopeVal; }
+    bool               vrKeepHeading() const { return vrKeepHeadingVal; }
+    float              vrUiScrollScale() const { return vrUiScrollScaleVal; }
+    float              vrUiLongPress() const { return vrUiLongPressVal; }
 
       // VR HUD parameters
       float               vrHudDistance()   const { return vrHudDist;    }
@@ -158,5 +163,10 @@ class CommandLine {
     bool                vrTeleGround = true;
     float               vrTeleMaxSlope = 45.f;
     bool                vrHapticsVal = true;
+    float               vrWalkStepVal = 0.3f;
+    float               vrWalkSlopeVal = 45.f;
+    bool                vrKeepHeadingVal = true;
+    float               vrUiScrollScaleVal = 1.f;
+    float               vrUiLongPressVal = 0.45f;
   };
 

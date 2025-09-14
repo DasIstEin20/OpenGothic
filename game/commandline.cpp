@@ -527,6 +527,51 @@ CommandLine::CommandLine(int argc, const char** argv) {
       } catch(...) {}
       vrTeleMaxSlope = std::clamp(vrTeleMaxSlope,0.f,90.f);
     }
+    else if(arg.rfind("--vr-walk-step",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkStepVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkStepVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-walk-slope",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrWalkSlopeVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrWalkSlopeVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-keep-heading",0)==0) {
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos) {
+        auto val = arg.substr(p+1);
+        vrKeepHeadingVal = (val!="0" && val!="off");
+      } else {
+        vrKeepHeadingVal = true;
+      }
+    }
+    else if(arg.rfind("--vr-ui-scroll-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrUiScrollScaleVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrUiScrollScaleVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
+    else if(arg.rfind("--vr-ui-longpress",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrUiLongPressVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrUiLongPressVal = std::stof(argv[++i]);
+      } catch(...) {}
+    }
     else if(arg.rfind("--vr-haptics",0)==0) {
       vrHapticsVal = true;
       auto p = arg.find('=');

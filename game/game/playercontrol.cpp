@@ -673,6 +673,23 @@ void PlayerControl::implMove(uint64_t dt) {
   if(bs==BS_UNCONSCIOUS)
     return;
 
+#ifdef OPENXR_ENABLED
+  if(CommandLine::inst().isVr()) {
+    if(!vrChar)
+      vrChar = std::make_unique<VRCharacter>(*w);
+    vrChar->setTransform(pl.position(), rot);
+    float forward = movement.forwardBackward.value();
+    float strafe  = movement.strafeRightLeft.value();
+    Tempest::Vec3 dir{strafe,0.f,forward};
+    float yaw = pl.rotationRad();
+    Tempest::Vec3 v;
+    v.x = dir.x*std::cos(yaw) - dir.z*std::sin(yaw);
+    v.z = dir.x*std::sin(yaw) + dir.z*std::cos(yaw);
+    bool grounded=false;
+    vrChar->move(v*200.f,float(dt)/1000.f,grounded);
+    return;
+  }
+#endif
   if(!pl.isAiQueueEmpty()) {
     runAngleDest = 0;
     return;

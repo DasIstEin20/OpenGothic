@@ -38,6 +38,11 @@ Additional options:
 - `--vr-throw-scale=<float>` – throw velocity multiplier (default `1.0`)
 - `--vr-teleport-grounded=on|off` – snap teleport to ground surface (default `on`)
 - `--vr-teleport-max-slope=<deg>` – reject teleport to steep surfaces (default `45`)
+- `--vr-walk-step=<meters>` – step offset for collision (default `0.30`)
+- `--vr-walk-slope=<deg>` – maximum walkable slope (default `45`)
+- `--vr-keep-heading=on|off` – keep controller yaw on teleport (default `on`)
+- `--vr-ui-scroll-scale=<float>` – scroll wheel scale for HUD laser (default `1.0`)
+- `--vr-ui-longpress=<sec>` – hold duration for context click (default `0.45`)
 - `--vr-haptics=on|off` – enable controller vibration feedback (default `on`)
 
 ## HUD/UI in VR
