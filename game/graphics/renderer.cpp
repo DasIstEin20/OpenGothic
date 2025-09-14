@@ -11,6 +11,10 @@
 #include "camera.h"
 #include "gothic.h"
 #include "utils/string_frm.h"
+#include "../commandline.h"
+#ifdef OPENXR_ENABLED
+#include "shader.h"
+#endif
 
 using namespace Tempest;
 
@@ -98,6 +102,22 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
   sky.viewLut       = device.attachment(Tempest::TextureFormat::RGBA32F, 128, 64);
   sky.viewCldLut    = device.attachment(Tempest::TextureFormat::RGBA32F, 512, 256);
   sky.irradianceLut = device.image2d(TextureFormat::RGBA32F, 3,2);
+
+#ifdef OPENXR_ENABLED
+  if(CommandLine::inst().isVr()) {
+    RenderState st;
+    st.setZTestMode(RenderState::ZTestMode::Always);
+    st.setZWriteEnabled(false);
+    st.setBlendSource(RenderState::BlendMode::Zero);
+    st.setBlendDest  (RenderState::BlendMode::SrcColor);
+    auto sh = GothicShader::get("triangle_uv.vert.sprv");
+    auto vs = device.shader(sh.data,sh.len);
+    sh      = GothicShader::get("vr_vignette.frag.sprv");
+    auto fs = device.shader(sh.data,sh.len);
+    vrVignettePso = device.pipeline(Triangles, st, vs, fs);
+    vrVignetteInner = 1.f - CommandLine::inst().vrVignetteStrength()*0.4f;
+  }
+#endif
 
   setupSettings();
   }
@@ -631,10 +651,21 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   if(settings.aaEnabled) {
     cmd.setDebugMarker("CMAA2 & Tonemapping");
     drawCMAA2(result, cmd, *wview);
-    } else {
+  } else {
     cmd.setDebugMarker("Tonemapping");
     drawTonemapping(result, cmd, *wview);
-    }
+  }
+
+#ifdef OPENXR_ENABLED
+  if(CommandLine::inst().isVr() && vrVignetteInner < 0.999f) {
+    struct Push { float inner = 1.f; } p;
+    p.inner = vrVignetteInner;
+    cmd.setFramebuffer({{result, Tempest::Preserve, Tempest::Preserve}});
+    cmd.setPushData(p);
+    cmd.setPipeline(vrVignettePso);
+    cmd.draw(nullptr,0,3);
+  }
+#endif
 
   wview->postFrameupdate();
   }

@@ -24,18 +24,43 @@ public:
   Tempest::Vec3 headPosition() const override;
   Tempest::Vec4 headOrientation() const override;
 
+  bool   isVisible() const override;
+  bool   isRunning() const override;
+  double xrDeltaSeconds() const override { return dt; }
+  void   recenter() override;
+  void   setRenderScale(float s);
+
 private:
   struct Eye {
     XrSwapchain                             swapchain = XR_NULL_HANDLE;
     std::vector<XrSwapchainImageVulkan2KHR> images;
     uint32_t                                width  = 0;
     uint32_t                                height = 0;
+    uint32_t                                baseWidth  = 0;
+    uint32_t                                baseHeight = 0;
+    uint32_t                                sampleCount = 1;
     VkFormat                                format = VK_FORMAT_R8G8B8A8_UNORM;
     uint32_t                                acquired = 0;
     XrView                                  view{XR_TYPE_VIEW};
     Tempest::Matrix4x4                      viewMat;
     Tempest::Matrix4x4                      projMat;
     Tempest::Attachment                     color; // per-frame wrapped image
+  };
+
+  enum class SessionState : uint8_t {
+    Idle,
+    Ready,
+    Synchronized,
+    Visible,
+    Focused,
+    Stopping,
+    Exiting,
+  };
+
+  enum class LogLevel : uint8_t {
+    Off,
+    Basic,
+    Verbose,
   };
 
   Tempest::Device* device = nullptr;
@@ -68,9 +93,22 @@ private:
   XrAction      teleportAction=XR_NULL_HANDLE;
   XrAction      aimPoseAction=XR_NULL_HANDLE;
   XrAction      hapticAction=XR_NULL_HANDLE;
-  XrSpace       aimSpace    = XR_NULL_HANDLE;
+  XrSpace       aimSpace[2] = {XR_NULL_HANDLE,XR_NULL_HANDLE};
   XrPath        handPath[2] = {XR_NULL_PATH,XR_NULL_PATH};
   XRInputState  input{};
+
+  SessionState  state       = SessionState::Idle;
+  LogLevel      logLevel    = LogLevel::Basic;
+  bool          visible     = false;
+  bool          running     = false;
+  double        dt          = 0.0;
+  XrTime        lastPredicted = 0;
+  bool          loggedFps   = false;
+  float         renderScale = 1.f;
+  size_t        dominantHand = 1;
+  bool          simpleController = false;
+  float         turnDeadzone = 0.25f;
+  bool          profileQueried = false;
 
   XRQuadLayerDesc uiReq{};
   bool            haveUi = false;
@@ -79,5 +117,9 @@ private:
   int                                     uiW = 0;
   int                                     uiH = 0;
   std::vector<XrSwapchainImageVulkan2KHR> uiImages;
+
+  bool createSwapchains();
+  void destroySwapchains();
+  void pollEvents();
 };
 #endif

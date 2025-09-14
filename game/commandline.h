@@ -2,6 +2,7 @@
 
 #include <Tempest/Platform>
 #include <Tempest/Dir>
+#include <Tempest/Event>
 
 #include <cstdint>
 #include <stdexcept>
@@ -59,6 +60,13 @@ class CommandLine {
     int                 vrSnapCooldown()  const { return vrSnapCooldownVal;}
     float               vrMoveSpeedScale()const { return vrMoveScale;   }
     float               vrVignetteStrength() const { return vrVignette; }
+    float               vrRenderScale()   const { return vrRenderScaleVal; }
+    Tempest::Event::KeyType vrRecenterKey() const { return vrRecenterKeyVal; }
+    bool                vrSeated()        const { return vrSeatedVal; }
+    enum class VrHand { Left, Right };
+    VrHand             vrDominantHand() const { return vrDominantHandVal; }
+    enum class VrLog { Off, Basic, Verbose };
+    VrLog              vrLog() const { return vrLogLevel; }
 
       // VR HUD parameters
       float               vrHudDistance()   const { return vrHudDist;    }
@@ -111,6 +119,11 @@ class CommandLine {
     int                 vrSnapCooldownVal= 250;
     float               vrMoveScale   = 1.f;
     float               vrVignette    = 0.f;
+    float               vrRenderScaleVal = 1.f;
+    Tempest::Event::KeyType vrRecenterKeyVal = Tempest::Event::K_R;
+    bool                vrSeatedVal   = false;
+    VrHand              vrDominantHandVal = VrHand::Right;
+    VrLog               vrLogLevel = VrLog::Basic;
     float               vrHudDist     = 1.4f;
     float               vrHudWidthVal = 1.0f;
     float               vrHudScaleVal = 1.0f;

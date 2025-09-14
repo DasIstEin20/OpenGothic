@@ -45,6 +45,17 @@ Available options:
 - `--vr-hud-follow=on|off` – make the HUD follow the head (default `on`)
 - `--vr-hud-res-scale=<float>` – resolution scale for the offscreen HUD texture (default `1.0`)
 
+Additional tweaks:
+
+- `--vr-render-scale=<float>` – resolution scale for the 3D scene (default `1.0`)
+- `--vr-vignette-strength=<0..1>` – comfort vignette strength for the scene only (default `0`)
+- `--vr-recenter-hotkey=<key>` – recenter view to current head pose (default `R`)
+- `--vr-seated=on|off` – lower height for seated play (default `off`)
+- `--vr-dominant-hand=right|left` – choose hand for laser pointer and haptics (default `right`)
+- `--vr-log=<off|basic|verbose>` – control OpenXR logging verbosity (default `basic`)
+
+Vignette affects only the 3D world rendering, the HUD layer remains untouched. Recommended values for Quest 2/3: render-scale `1.0–1.2`, vignette-strength `0.15–0.3`, dominant-hand `right`, recenter hotkey `R`.
+
 ### Laser pointer & Follow
 
 Aim with the right-hand controller; the trigger (interact) maps to a mouse click on the HUD quad. The quad position can be tuned via `--vr-hud-distance`, `--vr-hud-width`, `--vr-hud-scale`, `--vr-hud-pitch-deg`, `--vr-hud-follow` and `--vr-hud-res-scale`. When follow is enabled, the quad smoothly tethers to head movement with gentle smoothing.

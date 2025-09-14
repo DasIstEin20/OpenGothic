@@ -4,6 +4,7 @@
 #include <Tempest/TextCodec>
 #include <cstring>
 #include <cassert>
+#include <cctype>
 
 #if defined(__APPLE__)
 #include <filesystem>
@@ -252,6 +253,91 @@ CommandLine::CommandLine(int argc, const char** argv) {
           vrVignette = std::stof(argv[++i]);
       } catch(...) {}
       vrVignette = std::clamp(vrVignette,0.f,1.f);
+    }
+    else if(arg.rfind("--vr-render-scale",0)==0) {
+      auto p = arg.find('=');
+      try {
+        if(p!=std::string_view::npos)
+          vrRenderScaleVal = std::stof(std::string(arg.substr(p+1)));
+        else if(i+1<argc)
+          vrRenderScaleVal = std::stof(argv[++i]);
+      } catch(...) {}
+      if(vrRenderScaleVal<0.1f) vrRenderScaleVal = 0.1f;
+    }
+    else if(arg.rfind("--vr-recenter-hotkey",0)==0) {
+      std::string val;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos)
+        val = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        val = argv[++i];
+      if(!val.empty()) {
+        char c = char(std::toupper(val[0]));
+        switch(c) {
+          case 'A': vrRecenterKeyVal = Tempest::Event::K_A; break;
+          case 'B': vrRecenterKeyVal = Tempest::Event::K_B; break;
+          case 'C': vrRecenterKeyVal = Tempest::Event::K_C; break;
+          case 'D': vrRecenterKeyVal = Tempest::Event::K_D; break;
+          case 'E': vrRecenterKeyVal = Tempest::Event::K_E; break;
+          case 'F': vrRecenterKeyVal = Tempest::Event::K_F; break;
+          case 'G': vrRecenterKeyVal = Tempest::Event::K_G; break;
+          case 'H': vrRecenterKeyVal = Tempest::Event::K_H; break;
+          case 'I': vrRecenterKeyVal = Tempest::Event::K_I; break;
+          case 'J': vrRecenterKeyVal = Tempest::Event::K_J; break;
+          case 'K': vrRecenterKeyVal = Tempest::Event::K_K; break;
+          case 'L': vrRecenterKeyVal = Tempest::Event::K_L; break;
+          case 'M': vrRecenterKeyVal = Tempest::Event::K_M; break;
+          case 'N': vrRecenterKeyVal = Tempest::Event::K_N; break;
+          case 'O': vrRecenterKeyVal = Tempest::Event::K_O; break;
+          case 'P': vrRecenterKeyVal = Tempest::Event::K_P; break;
+          case 'Q': vrRecenterKeyVal = Tempest::Event::K_Q; break;
+          case 'R': vrRecenterKeyVal = Tempest::Event::K_R; break;
+          case 'S': vrRecenterKeyVal = Tempest::Event::K_S; break;
+          case 'T': vrRecenterKeyVal = Tempest::Event::K_T; break;
+          case 'U': vrRecenterKeyVal = Tempest::Event::K_U; break;
+          case 'V': vrRecenterKeyVal = Tempest::Event::K_V; break;
+          case 'W': vrRecenterKeyVal = Tempest::Event::K_W; break;
+          case 'X': vrRecenterKeyVal = Tempest::Event::K_X; break;
+          case 'Y': vrRecenterKeyVal = Tempest::Event::K_Y; break;
+          case 'Z': vrRecenterKeyVal = Tempest::Event::K_Z; break;
+          default: break;
+        }
+      }
+    }
+    else if(arg.rfind("--vr-seated",0)==0) {
+      std::string val;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos)
+        val = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        val = argv[++i];
+      vrSeatedVal = (val=="on" || val=="1" || val=="true");
+    }
+    else if(arg.rfind("--vr-dominant-hand",0)==0) {
+      std::string val;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos)
+        val = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        val = argv[++i];
+      if(val=="left")
+        vrDominantHandVal = VrHand::Left;
+      else if(val=="right")
+        vrDominantHandVal = VrHand::Right;
+    }
+    else if(arg.rfind("--vr-log",0)==0) {
+      std::string val;
+      auto p = arg.find('=');
+      if(p!=std::string_view::npos)
+        val = std::string(arg.substr(p+1));
+      else if(i+1<argc)
+        val = argv[++i];
+      if(val=="off")
+        vrLogLevel = VrLog::Off;
+      else if(val=="verbose")
+        vrLogLevel = VrLog::Verbose;
+      else
+        vrLogLevel = VrLog::Basic;
     }
     else if(arg.rfind("--vr-hud-distance",0)==0) {
       auto p = arg.find('=');
