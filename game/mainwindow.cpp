@@ -981,8 +981,11 @@ uint64_t MainWindow::tick() {
     player.setVrInteract(xr.interact);
     player.setVrMenu(xr.menu);
 
-    if(xr.attack && !vrAttackPrev)
-      xrBackend_->hapticPulse(0.5f,0.05f);
+    if(xr.attack && !vrAttackPrev && CommandLine::inst().vrHaptics()) {
+      auto dom = CommandLine::inst().vrDominantHand();
+      IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
+      xrBackend_->hapticPulse(h,0.5f,0.05f);
+    }
     vrAttackPrev = xr.attack;
 
     if(CommandLine::inst().vrIsSmoothTurn()) {
@@ -1003,15 +1006,41 @@ uint64_t MainWindow::tick() {
       auto w = Gothic::inst().world();
       auto pl = w ? w->player() : nullptr;
       if(pl!=nullptr) {
-        Tempest::Vec3 pos = pl->position();
-        float t = 0.f;
-        if(std::fabs(xr.aim.dir.y) > 1e-3f)
-          t = (pos.y - xr.aim.pos.y)/xr.aim.dir.y;
-        t = std::clamp(t,0.f,5.f);
-        Tempest::Vec3 dst = xr.aim.pos + xr.aim.dir*t;
-        dst.y = pos.y;
-        pl->setPosition(dst);
-        xrBackend_->hapticPulse(0.5f,0.05f);
+        bool ok=false;
+        Tempest::Vec3 dst=pl->position();
+        if(CommandLine::inst().vrTeleportGrounded() && w->physic()!=nullptr) {
+          auto to = xr.aim.pos + xr.aim.dir*1000.f;
+          auto res = w->physic()->ray(xr.aim.pos,to);
+          if(res.hasCol) {
+            float slope = std::acos(std::clamp(res.n.y, -1.f, 1.f));
+            slope = slope*180.f/float(M_PI);
+            if(slope <= CommandLine::inst().vrTeleportMaxSlope()) {
+              dst = res.v;
+              ok = true;
+            }
+          }
+        }
+        if(!ok) {
+          float t = 0.f;
+          if(std::fabs(xr.aim.dir.y) > 1e-3f)
+            t = (dst.y - xr.aim.pos.y)/xr.aim.dir.y;
+          t = std::clamp(t,0.f,5.f);
+          dst = xr.aim.pos + xr.aim.dir*t;
+          dst.y = pl->position().y;
+          ok = true;
+        }
+        if(ok) {
+          pl->setPosition(dst);
+          if(CommandLine::inst().vrHaptics()) {
+            auto dom = CommandLine::inst().vrDominantHand();
+            IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
+            xrBackend_->hapticPulse(h,0.5f,0.05f);
+          }
+        } else if(CommandLine::inst().vrHaptics()) {
+          auto dom = CommandLine::inst().vrDominantHand();
+          IXRBackend::XRHand h = (dom==CommandLine::VrHand::Left ? IXRBackend::XRHand::Left : IXRBackend::XRHand::Right);
+          xrBackend_->hapticPulse(h,0.15f,0.03f);
+        }
       }
     }
     vrTelePrev = xr.teleportClick;
@@ -1294,6 +1323,47 @@ void MainWindow::render(){
         auto views = xrBackend_->views();
         auto leftHand  = xrBackend_->handState(IXRBackend::XRHand::Left);
         auto rightHand = xrBackend_->handState(IXRBackend::XRHand::Right);
+        float dtSec = float(xrBackend_->xrDeltaSeconds());
+#ifdef OPENXR_ENABLED
+        if(CommandLine::inst().vrGrab()) {
+          IXRBackend::XRHandState hands[2] = {leftHand,rightHand};
+          for(size_t i=0;i<2;++i) {
+            auto hand = IXRBackend::XRHand(i);
+            const auto& hs = hands[i];
+            if(hs.isActive && hs.validGrip)
+              player.vrUpdateGrab(hand, hs.gripPose, dtSec);
+            else
+              player.vrReleaseGrab(hand);
+            bool sq = hs.squeeze;
+            if(hs.isActive && hs.validAim) {
+              if(sq && !vrSqueezePrev[i]) {
+                float x=0,y=0,z=0,w=1;
+                hs.aimPose.project(x,y,z,w);
+                Tempest::Vec3 org{x/w,y/w,z/w};
+                x=0; y=0; z=-1; w=1;
+                hs.aimPose.project(x,y,z,w);
+                Tempest::Vec3 fwd{x/w,y/w,z/w};
+                Tempest::Vec3 dir = fwd - org;
+                if(player.vrTryGrab(hand, org, dir)) {
+                  if(CommandLine::inst().vrHaptics())
+                    xrBackend_->hapticPulse(hand,0.6f,0.06f);
+                }
+              }
+              if(!sq && vrSqueezePrev[i]) {
+                player.vrReleaseGrab(hand);
+                if(CommandLine::inst().vrHaptics())
+                  xrBackend_->hapticPulse(hand,0.3f,0.04f);
+              }
+              vrSqueezePrev[i] = sq;
+            } else {
+              if(vrSqueezePrev[i]) {
+                player.vrReleaseGrab(hand);
+                vrSqueezePrev[i] = false;
+              }
+            }
+          }
+        }
+#endif
         if(vrSnapYaw!=0.f) {
           Matrix4x4 rot;
           rot.identity();

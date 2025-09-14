@@ -32,6 +32,13 @@ Additional options:
 - `--vr-snap-cooldown-ms=<int>` – cooldown between snap turns (default `250`)
 - `--vr-move-speed-scale=<float>` – movement speed multiplier (default `1.0`)
 - `--vr-vignette-strength=<0..1>` – comfort vignette strength (default `0`)
+- `--vr-grab=on|off` – enable grabbing with controllers (default `on`)
+- `--vr-grab-distance=<m>` – distance for grabbing items (default `3.0`)
+- `--vr-grab-radius=<m>` – hit-test sphere radius (default `0.10`)
+- `--vr-throw-scale=<float>` – throw velocity multiplier (default `1.0`)
+- `--vr-teleport-grounded=on|off` – snap teleport to ground surface (default `on`)
+- `--vr-teleport-max-slope=<deg>` – reject teleport to steep surfaces (default `45`)
+- `--vr-haptics=on|off` – enable controller vibration feedback (default `on`)
 
 ## HUD/UI in VR
 
@@ -75,3 +82,10 @@ Flags:
 - `--vr-hand-color-right=<r,g,b>` – RGB color for right hand (default `1.0,0.5,0.2`)
 
 The dominant hand is selected with `--vr-dominant-hand`. Laser and reticle appear only when a valid aim pose is available.
+
+## Grabbing & Grounded Teleport
+
+Squeeze a controller to grab nearby objects tagged for VR (name prefix `vr_pickup_`).
+Held objects follow the controller grip and can be dropped or thrown by releasing the squeeze.
+Teleport rays snap to the first walkable surface when `--vr-teleport-grounded=on`.
+Too-steep or invalid targets are rejected with a brief haptic tick.

@@ -10,6 +10,7 @@
 #include "ui/dialogmenu.h"
 #include "ui/inventorymenu.h"
 #include "gothic.h"
+#include "../commandline.h"
 
 PlayerControl::PlayerControl(DialogMenu& dlg, InventoryMenu &inv)
   :dlg(dlg),inv(inv) {
@@ -569,6 +570,40 @@ void PlayerControl::setVrInteract(bool v) {
 void PlayerControl::setVrMenu(bool v) {
   setVrButton(KeyCodec::Escape, v);
 }
+
+#ifdef OPENXR_ENABLED
+bool PlayerControl::vrTryGrab(IXRBackend::XRHand hand, const Tempest::Vec3& origin, const Tempest::Vec3& dir) {
+  if(!CommandLine::inst().isVr() || !CommandLine::inst().vrGrab())
+    return false;
+  auto w = Gothic::inst().world();
+  if(w==nullptr)
+    return false;
+  if(!vrGrab)
+    vrGrab = std::make_unique<VRGrabber>(*w);
+  return vrGrab->tryGrab(hand, origin, dir);
+}
+
+void PlayerControl::vrUpdateGrab(IXRBackend::XRHand hand, const Tempest::Matrix4x4& gripPose, float dt) {
+  if(!vrGrab)
+    return;
+  size_t id = size_t(hand);
+  Tempest::Vec3 pos{gripPose.at(3,0), gripPose.at(3,1), gripPose.at(3,2)};
+  if(vrHandHasPrev[id]) {
+    vrHandVel[id] = (pos - vrHandPos[id]) / std::max(dt, 1e-6f);
+  }
+  vrHandPos[id] = pos;
+  vrHandHasPrev[id] = true;
+  vrGrab->update(hand, gripPose, dt);
+}
+
+void PlayerControl::vrReleaseGrab(IXRBackend::XRHand hand) {
+  if(!vrGrab)
+    return;
+  size_t id = size_t(hand);
+  Tempest::Vec3 vel = vrHandVel[id] * CommandLine::inst().vrThrowScale();
+  vrGrab->release(hand, vel);
+}
+#endif
 
 bool PlayerControl::tickMove(uint64_t dt) {
   auto w = Gothic::inst().world();

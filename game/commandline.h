@@ -75,6 +75,13 @@ class CommandLine {
     float              vrHandScale() const { return vrHandScaleVal; }
     Tempest::Vec3      vrHandColorLeft() const { return vrHandColorLeftVal; }
     Tempest::Vec3      vrHandColorRight() const { return vrHandColorRightVal; }
+    bool               vrGrab() const { return vrGrabVal; }
+    float              vrGrabDistance() const { return vrGrabDist; }
+    float              vrGrabRadius() const { return vrGrabRadiusVal; }
+    float              vrThrowScale() const { return vrThrowScaleVal; }
+    bool               vrTeleportGrounded() const { return vrTeleGround; }
+    float              vrTeleportMaxSlope() const { return vrTeleMaxSlope; }
+    bool               vrHaptics() const { return vrHapticsVal; }
 
       // VR HUD parameters
       float               vrHudDistance()   const { return vrHudDist;    }
@@ -144,5 +151,12 @@ class CommandLine {
     float               vrHandScaleVal= 1.f;
     Tempest::Vec3       vrHandColorLeftVal  = {0.2f,0.7f,1.0f};
     Tempest::Vec3       vrHandColorRightVal = {1.0f,0.5f,0.2f};
+    bool                vrGrabVal = true;
+    float               vrGrabDist = 3.f;
+    float               vrGrabRadiusVal = 0.10f;
+    float               vrThrowScaleVal = 1.f;
+    bool                vrTeleGround = true;
+    float               vrTeleMaxSlope = 45.f;
+    bool                vrHapticsVal = true;
   };
 
