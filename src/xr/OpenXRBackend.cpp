@@ -125,6 +125,35 @@ static Tempest::Vec3 rotateInv(const XrQuaternionf& q, const Tempest::Vec3& v) {
   return rotate(XrQuaternionf{-q.x,-q.y,-q.z,q.w}, v);
 }
 
+static XrMatrix4x4f xrMatPose(const XrPosef& pose) {
+  const float x = pose.orientation.x;
+  const float y = pose.orientation.y;
+  const float z = pose.orientation.z;
+  const float w = pose.orientation.w;
+
+  XrMatrix4x4f m = xrMatIdentity();
+  m.m[0][0] = 1 - 2*y*y - 2*z*z;
+  m.m[0][1] = 2*x*y - 2*w*z;
+  m.m[0][2] = 2*x*z + 2*w*y;
+
+  m.m[1][0] = 2*x*y + 2*w*z;
+  m.m[1][1] = 1 - 2*x*x - 2*z*z;
+  m.m[1][2] = 2*y*z - 2*w*x;
+
+  m.m[2][0] = 2*x*z - 2*w*y;
+  m.m[2][1] = 2*y*z + 2*w*x;
+  m.m[2][2] = 1 - 2*x*x - 2*y*y;
+
+  m.m[0][3] = pose.position.x;
+  m.m[1][3] = pose.position.y;
+  m.m[2][3] = pose.position.z;
+  return m;
+}
+
+static Tempest::Matrix4x4 toMatrix(const XrPosef& pose) {
+  return toTempest(xrMatPose(pose));
+}
+
 static XrPath stringToPath(XrInstance inst, const char* str) {
   XrPath p = XR_NULL_PATH;
   xrStringToPath(inst,str,&p);
@@ -391,8 +420,10 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
   makeAction(interactAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "interact", "Interact");
   makeAction(menuAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "menu", "Menu");
   makeAction(teleportAction, XR_ACTION_TYPE_BOOLEAN_INPUT, "teleport_click", "Teleport");
-  makeAction(aimPoseAction, XR_ACTION_TYPE_POSE_INPUT, "aim_pose", "Aim Pose", handPath.data(),uint32_t(handPath.size()));
-  makeAction(hapticAction, XR_ACTION_TYPE_VIBRATION_OUTPUT, "haptic", "Haptic", handPath.data(),uint32_t(handPath.size()));
+  makeAction(aimPoseAction,  XR_ACTION_TYPE_POSE_INPUT,    "aim_pose",  "Aim Pose",  handPath.data(),uint32_t(handPath.size()));
+  makeAction(gripPoseAction, XR_ACTION_TYPE_POSE_INPUT,    "grip_pose", "Grip Pose", handPath.data(),uint32_t(handPath.size()));
+  makeAction(squeezeAction,  XR_ACTION_TYPE_BOOLEAN_INPUT, "squeeze",   "Squeeze",   handPath.data(),uint32_t(handPath.size()));
+  makeAction(hapticAction,   XR_ACTION_TYPE_VIBRATION_OUTPUT, "haptic", "Haptic", handPath.data(),uint32_t(handPath.size()));
 
   auto path = [&](const char* s) { return stringToPath(instance,s); };
   std::vector<XrActionSuggestedBinding> oculus = {
@@ -405,6 +436,10 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
     {teleportAction,  path("/user/hand/left/input/trigger/click")},
     {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
     {aimPoseAction,   path("/user/hand/left/input/aim/pose")},
+    {gripPoseAction,  path("/user/hand/right/input/grip/pose")},
+    {gripPoseAction,  path("/user/hand/left/input/grip/pose")},
+    {squeezeAction,   path("/user/hand/right/input/squeeze/click")},
+    {squeezeAction,   path("/user/hand/left/input/squeeze/click")},
     {hapticAction,    path("/user/hand/right/output/haptic")},
     {hapticAction,    path("/user/hand/left/output/haptic")}
   };
@@ -426,6 +461,10 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
       {teleportAction,  path("/user/hand/left/input/trigger/click")},
       {aimPoseAction,   path("/user/hand/right/input/aim/pose")},
       {aimPoseAction,   path("/user/hand/left/input/aim/pose")},
+      {gripPoseAction,  path("/user/hand/right/input/grip/pose")},
+      {gripPoseAction,  path("/user/hand/left/input/grip/pose")},
+      {squeezeAction,   path("/user/hand/right/input/squeeze/click")},
+      {squeezeAction,   path("/user/hand/left/input/squeeze/click")},
       {hapticAction,    path("/user/hand/right/output/haptic")},
       {hapticAction,    path("/user/hand/left/output/haptic")}
     };
@@ -447,6 +486,13 @@ bool OpenXRBackend::initialize(Tempest::Device& dev, Tempest::Window& win) {
     asci2.subactionPath = handPath[i];
     asci2.poseInActionSpace.orientation.w = 1.f;
     xrCreateActionSpace(session,&asci2,&aimSpace[i]);
+  }
+  for(size_t i=0;i<2;++i) {
+    XrActionSpaceCreateInfo asci2{XR_TYPE_ACTION_SPACE_CREATE_INFO};
+    asci2.action = gripPoseAction;
+    asci2.subactionPath = handPath[i];
+    asci2.poseInActionSpace.orientation.w = 1.f;
+    xrCreateActionSpace(session,&asci2,&gripSpace[i]);
   }
 
   Tempest::Log::i("View configuration: PRIMARY_STEREO");
@@ -488,6 +534,11 @@ void OpenXRBackend::shutdown() {
   uiImages.clear();
   haveUi = false;
   for(auto& sp:aimSpace)
+    if(sp!=XR_NULL_HANDLE) {
+      xrDestroySpace(sp);
+      sp = XR_NULL_HANDLE;
+    }
+  for(auto& sp:gripSpace)
     if(sp!=XR_NULL_HANDLE) {
       xrDestroySpace(sp);
       sp = XR_NULL_HANDLE;
@@ -730,6 +781,8 @@ Tempest::Vec4 OpenXRBackend::headOrientation() const {
 
 void OpenXRBackend::pollInput() {
   input = {};
+  for(auto& h:hands)
+    h = {};
   if(session==XR_NULL_HANDLE || actionSet==XR_NULL_HANDLE)
     return;
 
@@ -793,6 +846,38 @@ void OpenXRBackend::pollInput() {
   gi.action = teleportAction;
   xrGetActionStateBoolean(session,&gi,&b);
   input.teleportClick = b.currentState;
+
+  for(size_t i=0;i<2;++i) {
+    XrSpaceLocation loc{XR_TYPE_SPACE_LOCATION};
+    if(aimSpace[i]!=XR_NULL_HANDLE && xrLocateSpace(aimSpace[i], refSpace, frameState.predictedDisplayTime, &loc)==XR_SUCCESS) {
+      const XrSpaceLocationFlags req = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+      if((loc.locationFlags & req)==req) {
+        XrPosef p = loc.pose;
+        p.position.y += heightOffset;
+        hands[i].validAim = true;
+        hands[i].aimPose  = toMatrix(p);
+        hands[i].isActive = true;
+      }
+    }
+    loc = {XR_TYPE_SPACE_LOCATION};
+    if(gripSpace[i]!=XR_NULL_HANDLE && xrLocateSpace(gripSpace[i], refSpace, frameState.predictedDisplayTime, &loc)==XR_SUCCESS) {
+      const XrSpaceLocationFlags req = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+      if((loc.locationFlags & req)==req) {
+        XrPosef p = loc.pose;
+        p.position.y += heightOffset;
+        hands[i].validGrip = true;
+        hands[i].gripPose  = toMatrix(p);
+        hands[i].isActive  = true;
+      }
+    }
+    gi.action = squeezeAction;
+    gi.subactionPath = handPath[i];
+    xrGetActionStateBoolean(session,&gi,&b);
+    hands[i].squeeze = b.currentState;
+    if(b.isActive)
+      hands[i].isActive = true;
+  }
+  gi.subactionPath = XR_NULL_PATH;
 
   size_t handIdx = dominantHand;
   for(int attempt=0; attempt<2; ++attempt) {

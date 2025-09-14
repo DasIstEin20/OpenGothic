@@ -116,6 +116,41 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
     auto fs = device.shader(sh.data,sh.len);
     vrVignettePso = device.pipeline(Triangles, st, vs, fs);
     vrVignetteInner = 1.f - CommandLine::inst().vrVignetteStrength()*0.4f;
+
+    RenderState st2;
+    st2.setCullMode(RenderState::CullMode::NoCull);
+    st2.setZWriteEnabled(false);
+    st2.setZTestMode(RenderState::ZTestMode::LEqual);
+    sh = GothicShader::get("vr_unlit.vert.sprv");
+    auto vs2 = device.shader(sh.data,sh.len);
+    sh = GothicShader::get("vr_unlit.frag.sprv");
+    auto fs2 = device.shader(sh.data,sh.len);
+    vrUnlitTriPso = device.pipeline(Triangles, st2, vs2, fs2);
+    sh = GothicShader::get("vr_unlit_line.vert.sprv");
+    auto vs3 = device.shader(sh.data,sh.len);
+    vrUnlitLinePso = device.pipeline(Lines, st2, vs3, fs2);
+
+    const Tempest::Vec3 boxV[] = {
+      {-0.05f,-0.05f,-0.1f}, {0.05f,-0.05f,-0.1f}, {0.05f,0.05f,-0.1f}, {-0.05f,0.05f,-0.1f},
+      {-0.05f,-0.05f, 0.1f}, {0.05f,-0.05f, 0.1f}, {0.05f,0.05f, 0.1f}, {-0.05f,0.05f, 0.1f}
+    };
+    const uint16_t boxI[] = {
+      0,1,2, 0,2,3,
+      4,5,6, 4,6,7,
+      0,1,5, 0,5,4,
+      2,3,7, 2,7,6,
+      1,2,6, 1,6,5,
+      3,0,4, 3,4,7
+    };
+    vrBoxVbo = Resources::vbo(boxV,8);
+    vrBoxIbo = Resources::ibo<uint16_t>(boxI,36);
+
+    const Tempest::Vec3 quadV[] = {
+      {-0.05f,-0.05f,0.f}, {0.05f,-0.05f,0.f}, {0.05f,0.05f,0.f}, {-0.05f,0.05f,0.f}
+    };
+    const uint16_t quadI[] = {0,1,2, 0,2,3};
+    vrQuadVbo = Resources::vbo(quadV,4);
+    vrQuadIbo = Resources::ibo<uint16_t>(quadI,6);
   }
 #endif
 
@@ -2293,4 +2328,58 @@ Size Renderer::internalResolution() const {
     return Size(int(3*swapchain.w()/4), int(3*swapchain.h()/4));
   return Size(int(swapchain.w()/2), int(swapchain.h()/2));
   }
+
+#ifdef OPENXR_ENABLED
+void Renderer::drawLine(Attachment& dst, Encoder<CommandBuffer>& cmd,
+                        const Matrix4x4& viewProj,
+                        const Vec3& a, const Vec3& b, const Vec3& color) {
+  struct Push {
+    Matrix4x4 mvp;
+    Vec4      color;
+    Vec3      p0;
+    float     pad0 = 0.f;
+    Vec3      p1;
+  } p;
+  p.mvp   = viewProj;
+  p.color = Vec4{color.x,color.y,color.z,1.f};
+  p.p0    = a;
+  p.p1    = b;
+  cmd.setFramebuffer({{dst, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+  cmd.setPushData(p);
+  cmd.setPipeline(vrUnlitLinePso);
+  cmd.draw(nullptr,0,2);
+}
+
+void Renderer::drawBox(Attachment& dst, Encoder<CommandBuffer>& cmd,
+                       const Matrix4x4& viewProj,
+                       const Matrix4x4& model, const Vec3& color) {
+  struct Push {
+    Matrix4x4 mvp;
+    Vec4      color;
+  } p;
+  p.mvp = viewProj;
+  p.mvp.mul(model);
+  p.color = Vec4{color.x,color.y,color.z,1.f};
+  cmd.setFramebuffer({{dst, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+  cmd.setPushData(p);
+  cmd.setPipeline(vrUnlitTriPso);
+  cmd.draw(vrBoxVbo, vrBoxIbo, 0, uint32_t(vrBoxIbo.size()));
+}
+
+void Renderer::drawQuad(Attachment& dst, Encoder<CommandBuffer>& cmd,
+                        const Matrix4x4& viewProj,
+                        const Matrix4x4& model, const Vec3& color) {
+  struct Push {
+    Matrix4x4 mvp;
+    Vec4      color;
+  } p;
+  p.mvp = viewProj;
+  p.mvp.mul(model);
+  p.color = Vec4{color.x,color.y,color.z,1.f};
+  cmd.setFramebuffer({{dst, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+  cmd.setPushData(p);
+  cmd.setPipeline(vrUnlitTriPso);
+  cmd.draw(vrQuadVbo, vrQuadIbo, 0, uint32_t(vrQuadIbo.size()));
+}
+#endif
 

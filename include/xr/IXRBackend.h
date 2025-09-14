@@ -5,6 +5,7 @@
 #include <Tempest/Vec2>
 #include <Tempest/Vec3>
 #include <Tempest/Vec4>
+#include <cstdint>
 
 namespace Tempest { class Device; class Window; }
 struct EyeInfo {
@@ -45,6 +46,18 @@ public:
 
   virtual Tempest::Vec3 headPosition() const = 0;
   virtual Tempest::Vec4 headOrientation() const = 0;
+
+  struct XRHandState {
+    bool                 validAim  = false;
+    bool                 validGrip = false;
+    Tempest::Matrix4x4   aimPose;
+    Tempest::Matrix4x4   gripPose;
+    bool                 isActive = false;
+    bool                 squeeze  = false;
+  };
+
+  enum class XRHand : uint8_t { Left=0, Right=1 };
+  virtual XRHandState handState(XRHand hand) const = 0;
 
   struct XRInputState {
     struct Pose {

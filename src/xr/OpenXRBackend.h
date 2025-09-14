@@ -23,6 +23,7 @@ public:
   void setUiQuad(const XRQuadLayerDesc* q) override;
   Tempest::Vec3 headPosition() const override;
   Tempest::Vec4 headOrientation() const override;
+  XRHandState handState(XRHand hand) const override { return hands[size_t(hand)]; }
 
   bool   isVisible() const override;
   bool   isRunning() const override;
@@ -92,10 +93,14 @@ private:
   XrAction      menuAction  = XR_NULL_HANDLE;
   XrAction      teleportAction=XR_NULL_HANDLE;
   XrAction      aimPoseAction=XR_NULL_HANDLE;
+  XrAction      gripPoseAction=XR_NULL_HANDLE;
+  XrAction      squeezeAction =XR_NULL_HANDLE;
   XrAction      hapticAction=XR_NULL_HANDLE;
   XrSpace       aimSpace[2] = {XR_NULL_HANDLE,XR_NULL_HANDLE};
+  XrSpace       gripSpace[2]= {XR_NULL_HANDLE,XR_NULL_HANDLE};
   XrPath        handPath[2] = {XR_NULL_PATH,XR_NULL_PATH};
   XRInputState  input{};
+  XRHandState   hands[2];
 
   SessionState  state       = SessionState::Idle;
   LogLevel      logLevel    = LogLevel::Basic;

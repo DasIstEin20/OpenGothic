@@ -7,6 +7,10 @@
 #include <Tempest/Device>
 #include <Tempest/UniformBuffer>
 #include <Tempest/VectorImage>
+#ifdef OPENXR_ENABLED
+#include <Tempest/VertexBuffer>
+#include <Tempest/IndexBuffer>
+#endif
 
 #include "worldview.h"
 #include "shaders.h"
@@ -30,6 +34,18 @@ class Renderer final {
     void dbgDraw(Tempest::Painter& painter);
 
     Tempest::Attachment screenshoot(uint8_t frameId);
+
+#ifdef OPENXR_ENABLED
+    void drawLine(Tempest::Attachment& dst, Tempest::Encoder<Tempest::CommandBuffer>& cmd,
+                  const Tempest::Matrix4x4& viewProj,
+                  const Tempest::Vec3& a, const Tempest::Vec3& b, const Tempest::Vec3& color);
+    void drawBox(Tempest::Attachment& dst, Tempest::Encoder<Tempest::CommandBuffer>& cmd,
+                 const Tempest::Matrix4x4& viewProj,
+                 const Tempest::Matrix4x4& model, const Tempest::Vec3& color);
+    void drawQuad(Tempest::Attachment& dst, Tempest::Encoder<Tempest::CommandBuffer>& cmd,
+                  const Tempest::Matrix4x4& viewProj,
+                  const Tempest::Matrix4x4& model, const Tempest::Vec3& color);
+#endif
 
   private:
     enum Quality : uint8_t {
@@ -254,4 +270,12 @@ class Renderer final {
     Tempest::TextureFormat    zBufferFormat = Tempest::TextureFormat::Depth16;
 
     Shaders                   shaders;
+#ifdef OPENXR_ENABLED
+    Tempest::RenderPipeline    vrUnlitTriPso;
+    Tempest::RenderPipeline    vrUnlitLinePso;
+    Tempest::VertexBuffer<Tempest::Vec3> vrBoxVbo;
+    Tempest::IndexBuffer<uint16_t>       vrBoxIbo;
+    Tempest::VertexBuffer<Tempest::Vec3> vrQuadVbo;
+    Tempest::IndexBuffer<uint16_t>       vrQuadIbo;
+#endif
   };

@@ -3,6 +3,7 @@
 #include <Tempest/Platform>
 #include <Tempest/Dir>
 #include <Tempest/Event>
+#include <Tempest/Vec3>
 
 #include <cstdint>
 #include <stdexcept>
@@ -67,6 +68,13 @@ class CommandLine {
     VrHand             vrDominantHand() const { return vrDominantHandVal; }
     enum class VrLog { Off, Basic, Verbose };
     VrLog              vrLog() const { return vrLogLevel; }
+    bool               vrShowHands() const { return vrShowHandsVal; }
+    enum class VrHandsMode { Controller, Ghost };
+    VrHandsMode        vrHandsMode() const { return vrHandsModeVal; }
+    bool               vrLaser() const { return vrLaserVal; }
+    float              vrHandScale() const { return vrHandScaleVal; }
+    Tempest::Vec3      vrHandColorLeft() const { return vrHandColorLeftVal; }
+    Tempest::Vec3      vrHandColorRight() const { return vrHandColorRightVal; }
 
       // VR HUD parameters
       float               vrHudDistance()   const { return vrHudDist;    }
@@ -130,5 +138,11 @@ class CommandLine {
     float               vrHudPitch    = -10.f;
     bool                vrHudFollowVal= true;
     float               vrHudRes      = 1.0f;
+    bool                vrShowHandsVal = true;
+    VrHandsMode         vrHandsModeVal = VrHandsMode::Controller;
+    bool                vrLaserVal    = true;
+    float               vrHandScaleVal= 1.f;
+    Tempest::Vec3       vrHandColorLeftVal  = {0.2f,0.7f,1.0f};
+    Tempest::Vec3       vrHandColorRightVal = {1.0f,0.5f,0.2f};
   };
 
