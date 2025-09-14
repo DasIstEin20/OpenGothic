@@ -45,6 +45,7 @@ class Interactive;
 
 #ifdef OPENXR_ENABLED
 #include <vulkan/vulkan.h>
+#include "navigation/vrnav.h"
 struct HudImageInfo {
   VkImage image = VK_NULL_HANDLE;
   int     w = 0;
@@ -209,6 +210,10 @@ class MainWindow : public Tempest::Window {
     float                hudYaw = 0.f;
     bool                 hudInitialized = false;
     bool                 vrPointerPressed = false;
+    uint64_t             vrPointerPressTime = 0;
+    int                  vrPointerX = 0;
+    int                  vrPointerY = 0;
+    std::unique_ptr<VRNav> vrNav;
     bool                 vrSqueezePrev[2] = {false,false};
 #endif
   };

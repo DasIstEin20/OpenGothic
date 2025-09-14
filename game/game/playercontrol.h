@@ -18,6 +18,7 @@ class Gothic;
 
 #ifdef OPENXR_ENABLED
 #include "../physics/vrgrab.h"
+#include "../physics/vrchar.h"
 #endif
 class PlayerControl final {
   public:
@@ -229,6 +230,7 @@ class PlayerControl final {
     auto handleMovementAction(KeyCodec::ActionMapping actionMapping, bool pressed) -> void;
 #ifdef OPENXR_ENABLED
     std::unique_ptr<VRGrabber> vrGrab;
+    std::unique_ptr<VRCharacter> vrChar;
     std::array<Tempest::Vec3,2> vrHandPos{};
     std::array<Tempest::Vec3,2> vrHandVel{};
     std::array<bool,2>          vrHandHasPrev{{false,false}};

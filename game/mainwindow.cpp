@@ -1006,30 +1006,15 @@ uint64_t MainWindow::tick() {
       auto w = Gothic::inst().world();
       auto pl = w ? w->player() : nullptr;
       if(pl!=nullptr) {
-        bool ok=false;
-        Tempest::Vec3 dst=pl->position();
-        if(CommandLine::inst().vrTeleportGrounded() && w->physic()!=nullptr) {
-          auto to = xr.aim.pos + xr.aim.dir*1000.f;
-          auto res = w->physic()->ray(xr.aim.pos,to);
-          if(res.hasCol) {
-            float slope = std::acos(std::clamp(res.n.y, -1.f, 1.f));
-            slope = slope*180.f/float(M_PI);
-            if(slope <= CommandLine::inst().vrTeleportMaxSlope()) {
-              dst = res.v;
-              ok = true;
-            }
-          }
-        }
-        if(!ok) {
-          float t = 0.f;
-          if(std::fabs(xr.aim.dir.y) > 1e-3f)
-            t = (dst.y - xr.aim.pos.y)/xr.aim.dir.y;
-          t = std::clamp(t,0.f,5.f);
-          dst = xr.aim.pos + xr.aim.dir*t;
-          dst.y = pl->position().y;
-          ok = true;
-        }
+        if(!vrNav)
+          vrNav = std::make_unique<VRNav>(*w);
+        Tempest::Vec3 dst;
+        bool ok = vrNav->findWalkable(xr.aim.pos + xr.aim.dir*500.f, dst, CommandLine::inst().vrTeleportMaxSlope());
         if(ok) {
+          if(CommandLine::inst().vrKeepHeading()) {
+            float yaw = std::atan2(xr.aim.dir.x, xr.aim.dir.z)*180.f/float(M_PI);
+            pl->setDirection(yaw);
+          }
           pl->setPosition(dst);
           if(CommandLine::inst().vrHaptics()) {
             auto dom = CommandLine::inst().vrDominantHand();
@@ -1634,6 +1619,7 @@ void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
       mouseUpEvent(mu);
       vrPointerPressed=false;
     }
+    vrPointerPressTime = 0;
     return;
   }
   Tempest::Vec4 q{hud.pose.orientation.x, hud.pose.orientation.y, hud.pose.orientation.z, hud.pose.orientation.w};
@@ -1661,16 +1647,45 @@ void MainWindow::handleVrPointer(const IXRBackend::XRQuadLayerDesc& hud) {
   }
   int px = int(u*float(hud.width));
   int py = int(v*float(hud.height));
-  Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonNone);
-  mouseMoveEvent(mv);
+  if(vrPointerPressed) {
+    Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonLeft);
+    mouseMoveEvent(mv);
+    mouseDragEvent(mv);
+  } else {
+    Tempest::MouseEvent mv(px,py,Tempest::MouseEvent::ButtonNone);
+    mouseMoveEvent(mv);
+  }
+
+  auto w = Gothic::inst().world();
+  uint64_t now = w ? w->tickCount() : 0;
   if(st.interact && !vrPointerPressed) {
     Tempest::MouseEvent md(px,py,Tempest::MouseEvent::ButtonLeft);
     mouseDownEvent(md);
     vrPointerPressed=true;
+    vrPointerPressTime = now;
   } else if(!st.interact && vrPointerPressed) {
-    Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
-    mouseUpEvent(mu);
+    if(vrPointerPressTime!=0 && now - vrPointerPressTime > uint64_t(CommandLine::inst().vrUiLongPress()*1000.f)) {
+      Tempest::MouseEvent md(px,py,Tempest::MouseEvent::ButtonRight);
+      mouseDownEvent(md);
+      mouseUpEvent(md);
+      Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
+      mouseUpEvent(mu);
+    } else {
+      Tempest::MouseEvent mu(px,py,Tempest::MouseEvent::ButtonLeft);
+      mouseUpEvent(mu);
+    }
     vrPointerPressed=false;
+    vrPointerPressTime = 0;
+  }
+
+  vrPointerX = px;
+  vrPointerY = py;
+
+  float scr = st.move.y;
+  if(std::fabs(scr) > 0.1f) {
+    Tempest::MouseEvent mw(px,py,Tempest::MouseEvent::ButtonNone);
+    mw.delta = int(scr * CommandLine::inst().vrUiScrollScale());
+    mouseWheelEvent(mw);
   }
 }
 #endif
